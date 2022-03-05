@@ -33,6 +33,13 @@ https://github.com/ruyo/VRM4U/releases/tag/20220214
 https://developer.leapmotion.com/  
 https://developer.leapmotion.com/unreal  
 
+---
+
+## <u>Supplement</u>
+To build Exe, obtain the VRM4U source from the following repository and overwrite the VRM4U plugin directory.(/AvatarLiveLink/Plugins/VRM4U/)  
+https://github.com/ruyo/UnrealEngine_VRM4UPlugin/tree/release  
+
+![Select Tag](https://user-images.githubusercontent.com/71818379/156890590-046fea9e-0ea7-495b-a000-d70f507a8c12.png)
 
 ---
 
