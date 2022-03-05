@@ -35,6 +35,9 @@ https://developer.leapmotion.com/unreal
 
 ---
 
+## <u>Releases</u>
+[Sample Build](https://github.com/koiusa/AvatarLiveLink/releases)
+
 ## <u>Sample Video</u>
 https://youtu.be/N_I58J6-woM
 
