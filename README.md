@@ -19,6 +19,7 @@ Other items that came to mind.
 - LiveLink  
 - ARKit  
 - AppleARKitFaceSupport  
+https://docs.unrealengine.com/4.27/ja/AnimatingObjects/SkeletalMeshAnimation/FacialRecordingiPhone/  
 - Control Rig  
 - LiveLink Control Rig  
 - FullBody IK  
