@@ -67,6 +67,8 @@ print(a)
 # 配列ノード追加
 values_forCurve:unreal.RigVMStructNode = []
 items_forControl:unreal.RigVMStructNode = []
+items_forCurve:unreal.RigVMStructNode = []
+
 
 for node in n:
     print(node)
@@ -83,15 +85,17 @@ for node in n:
     if (node.get_node_title() == 'Select'):
         print(node)
         pin = node.find_pin('Values')
-        print(pin)
-        print(pin.get_array_size())
-        print(pin.get_default_value())
+        #print(pin)
+        #print(pin.get_array_size())
+        #print(pin.get_default_value())
         values_forCurve.append(pin)
 
     # items
     if (node.get_node_title() == 'Items'):
-        items_forControl.append(node.find_pin('Items'))
-    
+        if ("Type=Curve," in c.get_pin_default_value(node.find_pin('Items').get_pin_path())):
+            items_forCurve.append(node.find_pin('Items'))
+        else:
+            items_forControl.append(node.find_pin('Items'))
 
 print(values_forCurve)
 
@@ -147,11 +151,20 @@ for morph in morphListWithNo:
             print('save error')
         #unreal.SystemLibrary.collect_garbage()
 
-# curve array
+# curve Control array
 for  v in items_forControl:
     c.clear_array_pin(v.get_pin_path())
     for morph in morphListRenamed:
         tmp = '(Type=Control,Name='
+        tmp += "{}".format(morph)
+        tmp += ')'
+        c.add_array_pin(v.get_pin_path(), default_value=tmp)
+
+# curve Float array
+for  v in items_forCurve:
+    c.clear_array_pin(v.get_pin_path())
+    for morph in morphList:
+        tmp = '(Type=Curve,Name='
         tmp += "{}".format(morph)
         tmp += ')'
         c.add_array_pin(v.get_pin_path(), default_value=tmp)
