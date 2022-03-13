@@ -34,7 +34,7 @@
       "_comment_vrm4u_dummy": "Use UncookedOnly instead of Developer for UE4.24+",
       "Name": "VRM4UImporter",
       "Type": "Developer",
-      "LoadingPhase": "Default",
+      "LoadingPhase": "PreDefault",
       "WhitelistPlatforms": [
         "Win64",
         "Mac"

@@ -74,7 +74,7 @@ for i in range(len(humanoidBoneList)):
 ######
 
 rigs = unreal.ControlRigBlueprint.get_currently_open_rig_blueprints()
-print(rigs)
+#print(rigs)
 
 for r in rigs:
     s:str = r.get_path_name()
@@ -85,9 +85,7 @@ for r in rigs:
         rig = r
 
 
-h_mod = rig.get_hierarchy_modifier()
 
-elements = h_mod.get_selection()
 
 print(unreal.SystemLibrary.get_engine_version())
 if (unreal.SystemLibrary.get_engine_version()[0] == '5'):
@@ -104,14 +102,15 @@ print(n)
 
 a:unreal.RigUnit_CollectionItems = unreal.RigUnit_CollectionItems()
 
-print(a)
+# print(a)
 
 # 配列ノード追加
 collectionItem_forControl:unreal.RigVMStructNode = None
 collectionItem_forBone:unreal.RigVMStructNode = None
 
 for node in n:
-    if (node.get_node_title() == 'Items'):
+    if (node.get_node_title() == 'Items' or node.get_node_title() == 'Collection from Items'):
+
         #print(node.get_node_title())
         #node = unreal.RigUnit_CollectionItems.cast(node)
         pin = node.find_pin('Items')
@@ -143,7 +142,7 @@ if (vv == None):
         if (aa.get_editor_property("object_path") == args.vrm):
             v:unreal.VrmAssetListObject = aa
             vv = v.get_asset().vrm_meta_object
-print(vv)
+#print(vv)
 meta = vv
 
 
@@ -162,7 +161,6 @@ c.clear_array_pin(items_forBone.get_pin_path())
 ## h_mod
 rigs = unreal.ControlRigBlueprint.get_currently_open_rig_blueprints()
 rig = rigs[0]
-h_mod = rig.get_hierarchy_modifier()
 
 print(items_forControl)
 print(items_forBone)
