@@ -18,20 +18,17 @@ Other items that came to mind.
 ### UNREAL ENGINE plugins
 - LiveLink  
 - ARKit  
-- AppleARKitFaceSupport  
-https://docs.unrealengine.com/4.27/ja/AnimatingObjects/SkeletalMeshAnimation/FacialRecordingiPhone/  
+- [AppleARKitFaceSupport](https://docs.unrealengine.com/4.27/ja/AnimatingObjects/SkeletalMeshAnimation/FacialRecordingiPhone/)  
 - Control Rig  
 - LiveLink Control Rig  
 - FullBody IK  
 - OSC(Open Sound Control) 
 
 ### Third party plugins
-- VRM4U  
-https://github.com/ruyo/VRM4U  
+- [VRM4U](https://github.com/ruyo/VRM4U)    
 https://github.com/ruyo/VRM4U/releases/tag/20220308 
 
-- Ultraleap Traking Plugin  
-https://developer.leapmotion.com/  
+- [Ultraleap Traking Plugin](https://developer.leapmotion.com/)  
 https://developer.leapmotion.com/unreal  
 
 ---
