@@ -23,6 +23,7 @@ Other items that came to mind.
 - LiveLink Control Rig  
 - FullBody IK  
 - OSC(Open Sound Control) 
+- Enhanced Input
 
 ### Third party plugins
 - [VRM4U](https://github.com/ruyo/VRM4U)    
