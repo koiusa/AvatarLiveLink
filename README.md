@@ -8,8 +8,7 @@ This Project is Face-tracking and hand-tracking the VRM model character.
 However, HandTracking is a work in progress.  
 
 ## <u>Future outlook</u>
-Implementation of hand tracking.  
-Runtime loading of VRM model.  
+[milestone](https://github.com/koiusa/AvatarLiveLink/milestone/1)  
 Other items that came to mind.  
 
 ---
