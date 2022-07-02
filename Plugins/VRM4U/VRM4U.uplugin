@@ -31,10 +31,10 @@
       ]
     },
     {
-      "_comment_vrm4u_dummy": "Use UncookedOnly instead of Developer for UE4.24+",
+      "_comment_vrm4u_dummy": "Use Developer instead of UncookedOnly for UE4.23-",
       "Name": "VRM4UImporter",
-      "Type": "Developer",
-      "LoadingPhase": "PreDefault",
+      "Type": "UncookedOnly",
+      "LoadingPhase": "Default",
       "WhitelistPlatforms": [
         "Win64",
         "Mac"
@@ -56,5 +56,7 @@
       "Name": "LevelSequenceEditor",
       "Enabled": true
     }
-  ]
+  ],
+  "_comment_vrm4u_dummy": "IKRig Plugin for Use UE5.0+"
+
 }

@@ -43,12 +43,25 @@ morphListWithNo = morphList[:]
 morphListRenamed = []
 morphListRenamed.clear()
 
-
 for i in range(len(morphList)):
     morphListWithNo[i] = '{}'.format(morphList[i])
 
     
 print(morphListWithNo)
+
+while(len(hierarchy.get_bones()) > 0):
+    e = hierarchy.get_bones()[-1]
+    h_con.remove_all_parents(e)
+    h_con.remove_element(e)
+
+h_con.import_bones(unreal.ControlRigBlueprintLibrary.get_preview_mesh(rig).skeleton)
+h_con.import_curves(unreal.ControlRigBlueprintLibrary.get_preview_mesh(rig).skeleton)
+
+dset = rig.get_editor_property('rig_graph_display_settings')
+dset.set_editor_property('node_run_limit', 0)
+rig.set_editor_property('rig_graph_display_settings', dset)
+
+
 
 ###### root
 key = unreal.RigElementKey(unreal.RigElementType.NULL, 'MorphControlRoot_s')
@@ -126,27 +139,19 @@ for morph in morphListWithNo:
     settings.shape_color = [1.0, 0.0, 0.0, 1.0]
     settings.control_type = unreal.RigControlType.FLOAT
     
-    settings2 = settings
     
     try:
         control = hierarchy.find_control(key)
         if (control.get_editor_property('index') < 0):
             k = h_con.add_control(name_c, space, settings, unreal.RigControlValue())
-            #control_type=unreal.RigControlType.FLOAT,
-            #space_name=space.name,
-            #gizmo_color=[1.0, 0.0, 0.0, 1.0],
-            #)
             control = hierarchy.find_control(k)
     except:
-        k = h_con.add_control(name_c, space, settings2, unreal.RigControlValue())
-        #control_type=unreal.RigControlType.FLOAT,
-        #space_name=space.name,
-        #gizmo_color=[1.0, 0.0, 0.0, 1.0],
-        #)
+        k = h_con.add_control(name_c, space, settings, unreal.RigControlValue())
         control = hierarchy.find_control(k)
-    #control.set_editor_property('gizmo_visible', False)
-    #control.set_editor_property('gizmo_enabled', False)
-    #h_con.set_control(control)
+
+    shape_t = unreal.Transform(location=[0.0, 0.0, 0.0], rotation=[0.0, 0.0, 0.0], scale=[0.001, 0.001, 0.001])
+    hierarchy.set_control_shape_transform(k, shape_t, True)
+
 
     morphListRenamed.append(control.key.name)
     if (args.debugeachsave == '1'):
@@ -155,6 +160,36 @@ for morph in morphListWithNo:
         except:
             print('save error')
         #unreal.SystemLibrary.collect_garbage()
+
+# eye controller
+eyeControllerTable = [
+    "VRM4U_EyeUD_left",
+    "VRM4U_EyeLR_left",
+
+    "VRM4U_EyeUD_right",
+    "VRM4U_EyeLR_right",
+]
+
+# eye controller
+for eyeCon in eyeControllerTable:
+    name_c = "{}_c".format(eyeCon)
+    key = unreal.RigElementKey(unreal.RigElementType.CONTROL, name_c)
+    
+    settings = unreal.RigControlSettings()
+    settings.shape_color = [1.0, 0.0, 0.0, 1.0]
+    settings.control_type = unreal.RigControlType.FLOAT
+    
+    try:
+        control = hierarchy.find_control(key)
+        if (control.get_editor_property('index') < 0):
+            k = h_con.add_control(name_c, space, settings, unreal.RigControlValue())
+            control = hierarchy.find_control(k)
+    except:
+        k = h_con.add_control(name_c, space, settings, unreal.RigControlValue())
+        control = hierarchy.find_control(k)
+
+    shape_t = unreal.Transform(location=[0.0, 0.0, 0.0], rotation=[0.0, 0.0, 0.0], scale=[0.001, 0.001, 0.001])
+    hierarchy.set_control_shape_transform(k, shape_t, True)
 
 # curve Control array
 for  v in items_forControl:
