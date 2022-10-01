@@ -44,7 +44,7 @@ https://youtu.be/OMHianxRa1Q
 To build Exe, obtain the VRM4U source from the following repository and overwrite the VRM4U plugin directory.(/AvatarLiveLink/Plugins/VRM4U/)  
 https://github.com/ruyo/UnrealEngine_VRM4UPlugin/tree/release  
 
-![Select Tag](https://user-images.githubusercontent.com/71818379/158079669-fbc35c96-42ca-4a36-894d-74cda3513f23.png)
+![Select Tag](https://user-images.githubusercontent.com/71818379/193419265-46fa8635-e6d1-473c-b0c0-747c5d3c303d.jpg)
 
 ---
 
