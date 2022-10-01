@@ -4,8 +4,7 @@
 
 ## <u>OverView</u>
 This is UE project template using LiveLink and UltraLeap.  
-This Project is Face-tracking and hand-tracking the VRM model character.  
-However, HandTracking is a work in progress.  
+This Project is Face-tracking and hand-tracking the VRM model character.    
 
 ## <u>Future outlook</u>
 [milestone](https://github.com/koiusa/AvatarLiveLink/milestone/1)  
