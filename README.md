@@ -25,7 +25,7 @@ Other items that came to mind.
 
 ### Third party plugins
 - [VRM4U](https://github.com/ruyo/VRM4U)    
-https://github.com/ruyo/VRM4U/releases/tag/20220308 
+https://github.com/ruyo/VRM4U/releases/tag/20220705
 
 - [Ultraleap Traking Plugin](https://developer.leapmotion.com/)  
 https://developer.leapmotion.com/unreal  
