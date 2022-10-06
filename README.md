@@ -1,5 +1,9 @@
 # AvatarLiveLink
 
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/koiusa/AvatarLiveLink)](https://github.com/koiusa/AvatarLiveLink/graphs/commit-activity)
+[![GitHub issues](https://img.shields.io/github/issues/koiusa/AvatarLiveLink)](https://github.com/koiusa/AvatarLiveLink/issues)
+[![GitHub license](https://img.shields.io/github/license/koiusa/AvatarLiveLink)](https://github.com/koiusa/AvatarLiveLink/blob/main/LICENSE)
+
 ---
 
 ## <u>OverView</u>
