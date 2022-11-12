@@ -77,6 +77,10 @@
 				"Mac",
 				"Linux"
 			]
+		},
+		{
+			"Name": "CascadeToNiagaraConverter",
+			"Enabled": true
 		}
 	]
 }
