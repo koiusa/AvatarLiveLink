@@ -31,10 +31,15 @@
       ]
     },
     {
+      "Name": "VRM4UCapture",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    },
+    {
       "_comment_vrm4u_dummy": "Use Developer instead of UncookedOnly for UE4.23-",
       "Name": "VRM4UImporter",
       "Type": "UncookedOnly",
-      "LoadingPhase": "Default",
+      "LoadingPhase": "PreDefault",
       "WhitelistPlatforms": [
         "Win64",
         "Mac"

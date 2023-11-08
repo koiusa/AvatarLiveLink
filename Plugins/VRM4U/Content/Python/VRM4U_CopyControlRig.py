@@ -1,7 +1,10 @@
 ﻿# coding: utf-8
 import unreal
-
 import argparse
+
+print("VRM4U python begin")
+print (__file__)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-rigSrc")
 parser.add_argument("-rigDst")

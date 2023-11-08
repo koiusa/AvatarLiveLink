@@ -49,10 +49,18 @@ for i in range(len(morphList)):
     
 print(morphListWithNo)
 
-while(len(hierarchy.get_bones()) > 0):
-    e = hierarchy.get_bones()[-1]
-    h_con.remove_all_parents(e)
-    h_con.remove_element(e)
+bRemoveElement = False
+if ("5." in unreal.SystemLibrary.get_engine_version()):
+    if ("5.0." in unreal.SystemLibrary.get_engine_version()):
+        bRemoveElement = True
+else:
+    bRemoveElement = True
+
+if (bRemoveElement):
+    while(len(hierarchy.get_bones()) > 0):
+        e = hierarchy.get_bones()[-1]
+        h_con.remove_all_parents(e)
+        h_con.remove_element(e)
 
 h_con.import_bones(unreal.ControlRigBlueprintLibrary.get_preview_mesh(rig).skeleton)
 h_con.import_curves(unreal.ControlRigBlueprintLibrary.get_preview_mesh(rig).skeleton)
@@ -74,7 +82,7 @@ else:
 
 a:unreal.RigUnit_CollectionItems = unreal.RigUnit_CollectionItems()
 
-print(a)
+#print(a)
 
 # 配列ノード追加
 values_forCurve:unreal.RigVMStructNode = []
@@ -83,52 +91,56 @@ items_forCurve:unreal.RigVMStructNode = []
 
 
 for node in n:
-    print(node)
-    print(node.get_node_title())
+    #print(node)
+    #print(node.get_node_title())
 
     # set curve num
     if (node.get_node_title() == 'For Loop'):
-        print(node)
+        #print(node)
         pin = node.find_pin('Count')
-        print(pin)
-        c.set_pin_default_value(pin.get_pin_path(), str(len(morphList)))
+        #print(pin)
+        c.set_pin_default_value(pin.get_pin_path(), str(len(morphList)), True, False)
 
     # curve name array pin
     if (node.get_node_title() == 'Select'):
-        print(node)
+        #print(node)
         pin = node.find_pin('Values')
-        print(pin)
-        print(pin.get_array_size())
-        print(pin.get_default_value())
+        #print(pin)
+        #print(pin.get_array_size())
+        #print(pin.get_default_value())
         values_forCurve.append(pin)
         
     # items
     if (node.get_node_title() == 'Collection from Items'):
+
         if ("Type=Curve," in c.get_pin_default_value(node.find_pin('Items').get_pin_path())):
             items_forCurve.append(node.find_pin('Items'))
-        else:
+        elif (node.find_pin('Items').get_array_size() == 40):
             items_forControl.append(node.find_pin('Items'))
     
-
+print(items_forControl)
 print(values_forCurve)
 
 # reset controller
 for e in reversed(hierarchy.get_controls()):
+    if (len(hierarchy.get_parents(e)) == 0):
+        continue
     if (hierarchy.get_parents(e)[0].name == 'MorphControlRoot_s'):
         #if (str(e.name).rstrip('_c') in morphList):
         #    continue
         print('delete')
 
         #print(str(e.name))
-        h_con.remove_element(e)
+        if (bRemoveElement):
+            h_con.remove_element(e)
 
 
 # curve array
 for  v in values_forCurve:
-    c.clear_array_pin(v.get_pin_path())
+    c.clear_array_pin(v.get_pin_path(), False)
     for morph in morphList:
         tmp = "{}".format(morph)
-        c.add_array_pin(v.get_pin_path(), default_value=tmp)
+        c.add_array_pin(v.get_pin_path(), default_value=tmp, setup_undo_redo=False)
 
 # curve controller
 for morph in morphListWithNo:
@@ -193,21 +205,21 @@ for eyeCon in eyeControllerTable:
 
 # curve Control array
 for  v in items_forControl:
-    c.clear_array_pin(v.get_pin_path())
+    c.clear_array_pin(v.get_pin_path(), False)
     for morph in morphListRenamed:
         tmp = '(Type=Control,Name='
         tmp += "{}".format(morph)
         tmp += ')'
-        c.add_array_pin(v.get_pin_path(), default_value=tmp)
+        c.add_array_pin(v.get_pin_path(), default_value=tmp, setup_undo_redo=False)
 
 # curve Float array
 for  v in items_forCurve:
-    c.clear_array_pin(v.get_pin_path())
+    c.clear_array_pin(v.get_pin_path(), False)
     for morph in morphList:
         tmp = '(Type=Curve,Name='
         tmp += "{}".format(morph)
         tmp += ')'
-        c.add_array_pin(v.get_pin_path(), default_value=tmp)
+        c.add_array_pin(v.get_pin_path(), default_value=tmp, setup_undo_redo=False)
 
 
 

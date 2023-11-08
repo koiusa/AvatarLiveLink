@@ -316,7 +316,7 @@ static const ai_real ai_epsilon = (ai_real) 1e-6;
 #endif
 #else
 #if (_MSC_VER >= 1915)
-#define AI_NO_EXCEPT noexcept
+#define AI_NO_EXCEPT
 #else
 #define AI_NO_EXCEPT
 #endif

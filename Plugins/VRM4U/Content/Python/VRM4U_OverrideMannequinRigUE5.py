@@ -1,8 +1,12 @@
 ﻿# coding: utf-8
 from asyncio.windows_events import NULL
+from platform import java_ver
 import unreal
-
 import argparse
+
+print("VRM4U python begin")
+print (__file__)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-vrm")
 parser.add_argument("-rig")
@@ -36,7 +40,7 @@ r_con = rig.get_controller()
 graph = r_con.get_graph()
 node = graph.get_nodes()
 
-def checkAndSwapPin(pin):
+def checkAndSwapPinBoneToContorl(pin):
     subpins = pin.get_sub_pins()
     #print(subpins)
     if (len(subpins) != 2):
@@ -58,7 +62,7 @@ def checkAndSwapPin(pin):
 
     print(typePin.get_default_value() + ' : ' + namePin.get_default_value())
 
-    r_con.set_pin_default_value(typePin.get_pin_path(), 'Control')
+    r_con.set_pin_default_value(typePin.get_pin_path(), 'Control', True, False)
     print('swap end')
 
 #end check pin
@@ -69,7 +73,7 @@ controlPin = None
 while(len(hierarchy.get_bones()) > 0):
     e = hierarchy.get_bones()[-1]
     h_con.remove_all_parents(e)
-    h_con.remove_element(e)
+    #h_con.remove_element(e)
 
 h_con.import_bones(unreal.ControlRigBlueprintLibrary.get_preview_mesh(rig).skeleton)
 
@@ -82,15 +86,18 @@ for n in node:
             if (pin.get_array_size() > 40):
                 # long bone list
                 typePin = pin.get_sub_pins()[0].find_sub_pin('Type')
-                if (typePin.get_default_value() == 'Bone'):
-                    bonePin = pin
-                if (typePin.get_default_value() == 'Control'):
-                    controlPin = pin
-                continue
+                if (typePin != None):
+                    if (typePin.get_default_value() == 'Bone'):
+                        bonePin = pin
+                        continue
+                    if (typePin.get_default_value() == 'Control'):
+                        if ('Name="pelvis"' in r_con.get_pin_default_value(n.find_pin('Items').get_pin_path())):
+                            controlPin = pin
+                            continue
             for item in pin.get_sub_pins():
-                checkAndSwapPin(item)
+                checkAndSwapPinBoneToContorl(item)
         else:
-            checkAndSwapPin(pin)
+            checkAndSwapPinBoneToContorl(pin)
 
 
 for e in hierarchy.get_controls():
@@ -103,7 +110,7 @@ for e in hierarchy.get_controls():
         continue
     c = hierarchy.find_control(e)
 
-    print(e.name)
+    #print(e.name)
 
 
     #ttt = unreal.RigComputedTransform(transform=[[0.0, 0.0, 2.0], [90.0, 0.0, 0.0], [0.03, 0.03, 0.25]])
@@ -291,15 +298,21 @@ a = reg.get_all_assets();
 
 if (args.meta):
     for aa in a:
-        if (aa.get_editor_property("object_path") == args.meta):
+        print(aa.get_editor_property("package_name"))
+        print(aa.get_editor_property("asset_name"))
+        if ((unreal.StringLibrary.conv_name_to_string(aa.get_editor_property("package_name"))+"."+unreal.StringLibrary.conv_name_to_string(aa.get_editor_property("asset_name"))) == unreal.StringLibrary.conv_name_to_string(args.meta)):
+            #if (aa.get_editor_property("object_path") == args.meta):
             v:unreal.VrmMetaObject = aa
             vv = aa.get_asset()
+            break
 
 if (vv == None):
     for aa in a:
-        if (aa.get_editor_property("object_path") == args.vrm):
+        if ((unreal.StringLibrary.conv_name_to_string(aa.get_editor_property("package_name"))+"."+unreal.StringLibrary.conv_name_to_string(aa.get_editor_property("asset_name"))) == unreal.StringLibrary.conv_name_to_string(args.meta)):
+            #if (aa.get_editor_property("object_path") == args.vrm):
             v:unreal.VrmAssetListObject = aa
             vv = v.get_asset().vrm_meta_object
+            break
 
 meta = vv
 
@@ -341,15 +354,24 @@ def boneOverride(pin):
     if (typePin==None):
         return
 
+    if (namePin==None):
+        return
+
     controlName = namePin.get_default_value()
+
+    if (controlName==''):
+        return
+
     if (controlName.endswith('_ctrl')):
         return
     if (controlName.endswith('_space')):
         return
 
-    r_con.set_pin_default_value(typePin.get_pin_path(), 'Bone')
+    r_con.set_pin_default_value(typePin.get_pin_path(), 'Bone', True, False)
+
     table = [i for i in swapBoneTable if i[0]==controlName]
     if (len(table) == 0):
+        # use node  or  no control
         return
 
     if (table[0][0] == 'root'):
@@ -365,7 +387,7 @@ def boneOverride(pin):
     #print('<<<')
     #print(metaTable)
 
-    r_con.set_pin_default_value(namePin.get_pin_path(), metaTable)
+    r_con.set_pin_default_value(namePin.get_pin_path(), metaTable, True, False)
     #for e in meta.humanoid_bone_table:
 
 for n in allBackwardsNode:
@@ -467,13 +489,97 @@ for e in swapBoneTable:
         tmp = '(Type=Control,Name='
         tmp += "{}".format(e[0])
         tmp += ')'
-        r_con.add_array_pin(controlPin.get_pin_path(), default_value=tmp)
+        r_con.add_array_pin(controlPin.get_pin_path(), default_value=tmp, setup_undo_redo=False)
 
         tmp = '(Type=Bone,Name='
         tmp += "\"{}\"".format(humanoidBoneToModel[e[1]])
         tmp += ')'
-        r_con.add_array_pin(bonePin.get_pin_path(), default_value=tmp)
+        r_con.add_array_pin(bonePin.get_pin_path(), default_value=tmp, setup_undo_redo=False)
 
         # for bone name space
         namePin = bonePin.get_sub_pins()[-1].find_sub_pin('Name')
-        r_con.set_pin_default_value(namePin.get_pin_path(), "{}".format(humanoidBoneToModel[e[1]]))
+        r_con.set_pin_default_value(namePin.get_pin_path(), "{}".format(humanoidBoneToModel[e[1]]), True, False)
+
+
+# skip invalid bone, controller
+
+# disable node
+def disableNode(toNoneNode):
+    print(toNoneNode)
+    pins = toNoneNode.get_pins()
+    for pin in pins:
+        typePin = pin.find_sub_pin('Type')
+        namePin = pin.find_sub_pin('Name')
+
+        if (typePin==None or namePin==None):
+            continue
+        print(f'DisablePin {typePin.get_default_value()} : {namePin.get_default_value()}')
+
+        # control
+        key = unreal.RigElementKey(unreal.RigElementType.CONTROL, "{}".format(namePin.get_default_value()))
+
+        # disable node
+        r_con.set_pin_default_value(namePin.get_pin_path(), 'None', True, False)
+
+        if (typePin.get_default_value() == 'Control'):
+
+            #disable control
+            if (hierarchy.contains(key) == True):
+                settings = h_con.get_control_settings(key)
+
+                if ("5." in unreal.SystemLibrary.get_engine_version()):
+                    if ("5.0." in unreal.SystemLibrary.get_engine_version()):
+                        settings.set_editor_property('shape_enabled',  False)
+                    else:
+                        settings.set_editor_property('shape_visible',  False)
+                else:
+                    settings.set_editor_property('shape_enabled',  False)
+            
+                ttt = hierarchy.get_global_control_shape_transform(key, True)
+                ttt.scale3d.set(0.001, 0.001, 0.001)
+                hierarchy.set_control_shape_transform(key, ttt, True)
+
+                h_con.set_control_settings(key, settings)
+
+
+for n in node:
+    pins = n.get_pins()
+    for pin in pins:
+        if (pin.is_array()):
+            continue
+        else:
+            typePin = pin.find_sub_pin('Type')
+            namePin = pin.find_sub_pin('Name')
+            if (typePin==None or namePin==None):
+                continue
+            if (typePin.get_default_value() != 'Bone'):
+                continue
+            
+            if (namePin.is_u_object() == True):
+                continue
+
+            if (len(n.get_linked_source_nodes()) > 0):
+                continue
+
+            key = unreal.RigElementKey(unreal.RigElementType.BONE, namePin.get_default_value())
+            if (hierarchy.contains(key) == True):
+                continue
+            print(f'disable linked node from {typePin.get_default_value()} : {namePin.get_default_value()}')
+            for toNoneNode in n.get_linked_target_nodes():
+                disableNode(toNoneNode)
+
+
+
+## morph
+
+# -vrm vrm  -rig rig -debugeachsave 0
+#args.vrm
+#args.rig
+
+command = 'VRM4U_CreateMorphTargetControllerUE5.py ' + '-vrm ' + args.vrm + ' -rig ' + args.rig + ' -debugeachsave 0'
+
+print(command)
+
+unreal.PythonScriptLibrary.execute_python_command(command)
+
+unreal.ControlRigBlueprintLibrary.recompile_vm(rig)
