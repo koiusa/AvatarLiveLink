@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -7,7 +7,13 @@
 #include "Misc/EngineVersionComparison.h"
 #include "Engine/Scene.h"
 #include "LiveLinkTypes.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "VrmUtil.h"
+
+#if	UE_VERSION_OLDER_THAN(4,26,0)
+#else
+#include "AssetRegistry/AssetData.h"
+#endif
 
 #if	UE_VERSION_OLDER_THAN(4,20,0)
 struct FCameraTrackingFocusSettings {
@@ -115,6 +121,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VRM4U")
 	static void VRMChangeMaterialStaticSwitch(UMaterialInstanceConstant *material, FName paramName, bool bEnable);
 
+	UFUNCTION(BlueprintCallable, Category = "VRM4U", meta = (DevelopmentOnly))
+	static void VRMGetMaterialStaticSwitch(UMaterialInstance* material, FName paramName, bool &bHasParam, bool &bEnable);
+
 	// mat end
 
 	UFUNCTION(BlueprintCallable, Category = "VRM4U")
@@ -129,11 +138,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VRM4U")
 	static bool VRMGetAssetsByPackageName(FName PackageName, TArray<FAssetData>& OutAssetData, bool bIncludeOnlyOnDiskAssets = false);
 
+	UFUNCTION(BlueprintCallable, Category = "VRM4U")
+	static void VRMSetIsDirty(UObject *obj);
+
 	UFUNCTION(BlueprintCallable, Category = "VRM4U", meta = (WorldContext = "WorldContextObject"))
 	static UTextureRenderTarget2D* VRMCreateRenderTarget2D(UObject* WorldContextObject, int32 Width = 256, int32 Height = 256, ETextureRenderTargetFormat Format = RTF_RGBA16f, FLinearColor ClearColor = FLinearColor::Black);
 
 	UFUNCTION(BlueprintCallable, Category = "VRM4U", meta = (WorldContext = "WorldContextObject"))
 	static bool VRMRenderingThreadEnable(bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category = "VRM4U", meta = (WorldContext = "WorldContextObject"))
+	static int VRMGetMeshSectionNum(const USkeletalMesh* mesh);
+
+	UFUNCTION(BlueprintCallable, Category = "VRM4U", meta = (WorldContext = "WorldContextObject"))
+	static bool VRMRemoveMeshSection(USkeletalMesh* mesh, int LODIndex, int SectionIndex);
 
 	UFUNCTION(BlueprintCallable, Category = "VRM4U", meta = (WorldContext = "WorldContextObject"))
 	static bool VRMGetShadowEnable(const USkeletalMesh *mesh, int MaterialIndex);
@@ -232,7 +250,19 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "VRM4U", meta = (DynamicOutputParam = "AssetName"))
 	static void VRMGetTopLevelAssetName(const FAssetData& target, FName& AssetName);
-	
+
+	UFUNCTION(BlueprintPure, Category = "VRM4U")
+	static UVrmAssetListObject* VRMGetVrmAssetListObjectFromAsset(const UObject *Asset);
+
+	UFUNCTION(BlueprintPure, Category = "VRM4U")
+	static bool VRMIsMovieRendering();
+
+	UFUNCTION(BlueprintPure, Category = "VRM4U")
+	static bool VRMIsTemporaryObject(const UObject *obj);
+
+	UFUNCTION(BlueprintPure, Category = "VRM4U")
+	static bool VRMIsEditorPreviewObject(const UObject* obj);
+
 };
 
 

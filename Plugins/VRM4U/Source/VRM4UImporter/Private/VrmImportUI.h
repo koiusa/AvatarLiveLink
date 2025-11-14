@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 #include "UObject/Object.h"
 #include "Factories/ImportSettings.h"
 #include "VrmConvert.h"
+#include "Vrm1LicenseObject.h"
 
 #include "VrmImportUI.generated.h"
 
@@ -39,6 +40,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mesh)
 	EVRMImportMaterialType MaterialType;
 
+#if UE_VERSION_OLDER_THAN(5,2,0)
+	static const bool VRM4U_UseUE5Mat = false;
+#else
+	static const bool VRM4U_UseUE5Mat = true;
+#endif
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Use UE5 Material"))
+	bool bUseUE5Material = VRM4U_UseUE5Mat;
+
 	/** Outline Material*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "GenerateOutlineMaterial"))
 	bool bGenerateOutlineMaterial = true;
@@ -56,6 +66,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Animation Play Rate Scale"))
 	float PlayRateScale = 1.0f;
 
+	/** Remove RootBone Rotation */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Remove RootBone Rotation"))
+	bool bRemoveRootBoneRotation = true;
+
+	/** Remove RootBone Position */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Remove RootBone Position"))
+	bool bRemoveRootBonePosition = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "VRM10 Convert to Restpose from Bindpose"))
+	bool bVrm10UseBindToRestPose = true;
+
 	/** Remove Local Rotation for VRM10 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "VRM10 Remove Local Rotation"))
 	bool bVrm10RemoveLocalRotation = false;
@@ -64,12 +85,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "VRM10 Bindpose"))
 	bool bVrm10Bindpose = false;
 
-	/** Noemalize Bone Name */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Normalize bone name"))
-	bool bStrictBoneName = false;
+	/** Force Original Bone Name */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Force original bone name"))
+	bool bForceOriginalBoneName = false;
 
 		/** Duplicate mesh and renamed humanoid bone */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="Generate renamed humanoid mesh"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName= "Generate renamed humanoid mesh"))
 	bool bGenerateHumanoidRenamedMesh = false;
 
 	/** Add IK Bone */
@@ -81,18 +102,20 @@ public:
 	bool bGenerateRigIK = true;
 
 	/** Remove Physics asset */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="No physics asset"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "No physics asset"))
 	bool bSkipPhysics = false;
 
+	/** Remove Retargeter asset */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "No Retargeter asset"))
+	bool bSkipRetargeter = false;
+
 	/** Remove MorphTarget */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="No MorphTarget"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "No MorphTarget"))
 	bool bSkipMorphTarget = false;
 
 	/** Use MorphTarget Normal */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Eable MorphTarget Normal(TangentZDelta)"))
 	bool bEnableMorphTargetNormal = false;
-
-#define VRM4U_MorphStrictMode false
 
 #if UE_VERSION_OLDER_THAN(4,26,0)
 	static const bool VRM4U_UseBC7 = false;
@@ -101,9 +124,9 @@ public:
 #endif
 
 
-	/** Use Strict MorphTarget Name Mode */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Normalize morphtarget name"))
-	bool bStrictMorphTargetNameMode = VRM4U_MorphStrictMode;
+	/** Force Original MorphTarget Name Mode */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Force original morphtarget name"))
+	bool bForceOriginalMorphTargetName = false;
 
 	/** Use Strict MorphTarget Name Mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Remove BlendShapeGroup prefix for old VRM file"))
@@ -119,7 +142,7 @@ public:
 
 	/** Save as single uasset file */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "Single uasset file"))
-	bool bSingleUAssetFile = true;
+	bool bSingleUAssetFile = false;
 
 	/** Use GridTexture by Default */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Texture] Use DummyGrid by DefaultBaseTexture"))
@@ -134,15 +157,15 @@ public:
 	bool bMipmapGenerateMode = false;
 
 	/** Merge material using same parameter */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="[Optimize] Merge material"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Optimize] Merge material"))
 	bool bMergeMaterial = true;
 
 	/** Merge primitives using same material */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Optimize] Merge primitive"))
-	bool bMergePrimitive = true;
+	bool bMergePrimitive = false;
 
 	/** Use optimized MaterialInstance */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="[Optimize] use opt material"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Optimize] use opt material"))
 	bool bOptimizeMaterial = true;
 
 	/** Remove unused vertex */
@@ -168,13 +191,35 @@ public:
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="Delete bone without mesh"))
 	bool bSkipNoMeshBone = false;
 
+	/** for DEBUG. Ignore Validation */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Debug] Ignore VRM Validataion"))
+	bool bIgnoreVRMValidation = false;
+
 	/** for DEBUG. Import root bone only */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName="[Debug] One bone only"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Debug] One bone only"))
 	bool bDebugOneBone = false;
+
+	/** for DEBUG. No mesh. Bone only */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Debug] No Mesh"))
+	bool bDebugNoMesh = false;
+
+	/** for DEBUG. No mesh. Bone only */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Mesh, meta = (ImportType = "StaticMesh|SkeletalMesh", DisplayName = "[Debug] No Material"))
+	bool bDebugNoMaterial = false;
 
 	/** Skeleton to use for imported asset. When importing a mesh, leaving this as "None" will create a new skeleton. When importing an animation this MUST be specified to import the asset. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category=Mesh, meta=(ImportType="SkeletalMesh"))
 	class USkeleton* Skeleton;
+
+	//
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VRM1_License")
+	TArray<FLicenseBoolDataPair> LicenseBool;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VRM1_License")
+	TArray<FLicenseStringDataPair> LicenseString;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VRM1_License")
+	TArray<FLicenseStringDataArray> LicenseStringArray;
 
 	//
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "License_Personation/CharacterizationPermission")

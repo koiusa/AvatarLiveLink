@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -11,6 +11,7 @@
 #include "Sockets.h"
 #include "Common/UdpSocketBuilder.h"
 #include "Misc/EngineVersionComparison.h"
+#include "Tickable.h"
 
 
 #if	UE_VERSION_OLDER_THAN(4,26,0)

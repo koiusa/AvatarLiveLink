@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "LoaderBPFunctionLibrary.h"
 
@@ -8,6 +8,7 @@
 #include "VrmAssetListObject.h"
 #include "VrmMetaObject.h"
 #include "VrmLicenseObject.h"
+#include "Vrm1LicenseObject.h"
 
 #include "VrmAsyncLoadAction.h"
 
@@ -35,15 +36,18 @@
 #include "UObject/Package.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "EditorFramework/AssetImportData.h"
-
+#include "TextureResource.h"
+#include "Engine/Texture2D.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "Engine/Blueprint.h"
 
 #if	UE_VERSION_OLDER_THAN(4,26,0)
 #include "AssetRegistryModule.h"
 #else
 #include "AssetRegistry/AssetRegistryModule.h"
 #endif
+
 #include "UObject/Package.h"
 #include "Engine/Engine.h"
 
@@ -51,50 +55,22 @@
 //#include "Windows/WindowsSystemIncludes.h"
 
 #if	UE_VERSION_OLDER_THAN(5,0,0)
-
-#elif UE_VERSION_OLDER_THAN(5,2,0)
-
-#include "UObject/SavePackage.h"
-#include "IKRigDefinition.h"
-#include "IKRigSolver.h"
-#if WITH_EDITOR
-#include "EditorFramework/AssetImportData.h"
-#include "IContentBrowserSingleton.h"
-#include "ContentBrowserModule.h"
-#include "RigEditor/IKRigController.h"
-#include "RetargetEditor/IKRetargeterController.h"
-#include "Retargeter/IKRetargeter.h"
-#include "Solvers/IKRig_PBIKSolver.h"
-#endif
-
-#elif UE_VERSION_OLDER_THAN(5,3,0)
-#include "UObject/SavePackage.h"
-#include "IKRigDefinition.h"
-#include "IKRigSolver.h"
-#if WITH_EDITOR
-#include "EditorFramework/AssetImportData.h"
-#include "IContentBrowserSingleton.h"
-#include "ContentBrowserModule.h"
-#include "RigEditor/IKRigController.h"
-#include "RetargetEditor/IKRetargeterController.h"
-#include "Retargeter/IKRetargeter.h"
-#include "Solvers/IKRig_FBIKSolver.h"
-#endif
-
 #else
-#include "UObject/SavePackage.h"
-#include "Rig/IKRigDefinition.h"
-#include "Rig/Solvers/IKRigSolver.h"
-#if WITH_EDITOR
 #include "EditorFramework/AssetImportData.h"
-#include "IContentBrowserSingleton.h"
+#include "UObject/SavePackage.h"
+
+#if WITH_EDITOR
 #include "ContentBrowserModule.h"
-#include "RigEditor/IKRigController.h"
-#include "RetargetEditor/IKRetargeterController.h"
-#include "Retargeter/IKRetargeter.h"
-#include "Rig/Solvers/IKRig_FBIKSolver.h"
+#include "IContentBrowserSingleton.h"
 #endif
 
+#endif
+
+#include "VrmRigHeader.h"
+
+#if UE_VERSION_OLDER_THAN(5,4,0)
+#else
+#include "MIsc/FieldAccessor.h"
 #endif
 
 #if PLATFORM_WINDOWS
@@ -148,17 +124,37 @@ namespace {
 		}
 	};
 
-#if	UE_VERSION_OLDER_THAN(5,0,0)
-	template<typename T>
-	FTexturePlatformData* GetPlatformData(T t) {
-		return t->PlatformData;
+}
+
+
+static std::string GetExtAndSetModelTypeLocal(std::string e, const uint8* pDataLocal, size_t sizeLocal) {
+	std::string e_tmp = e;
+	VRMConverter::Options::Get().ClearModelType();
+
+	if (e.compare("vrm") == 0 || e.compare("glb") == 0 || e.compare("gltf") == 0) {
+
+		VRMConverter::Options::Get().SetVRM0Model(true);
+
+		extern bool VRMIsVRM10(const uint8 * pData, size_t size);
+		if (VRMIsVRM10(pDataLocal, sizeLocal)) {
+			VRMConverter::Options::Get().SetVRM10Model(true);
+		}
 	}
-#else
-	template<typename T>
-	TFieldPtrAccessor<FTexturePlatformData> GetPlatformData(T* t) {
-		return t->GetPlatformData();
+
+	if (e.compare("vrma") == 0) {
+		VRMConverter::Options::Get().SetVRMAModel(true);
+		VRMConverter::Options::Get().SetNoMesh(true);
+		VRMConverter::Options::Get().SetVRM10Model(true);
+		e_tmp = "vrm";
 	}
-#endif
+
+	if (e.compare("bvh") == 0) {
+		VRMConverter::Options::Get().SetBVHModel(true);
+	}
+	if (e.compare("pmx") == 0) {
+		VRMConverter::Options::Get().SetPMXModel(true);
+	}
+	return e_tmp;
 }
 
 static bool RemoveObject(UObject* u) {
@@ -192,6 +188,7 @@ static bool RemoveAssetList(UVrmAssetListObject *&assetList) {
 	}
 	RemoveObject(assetList->VrmMetaObject);
 	RemoveObject(assetList->VrmLicenseObject);
+	RemoveObject(assetList->Vrm1LicenseObject);
 	RemoveObject(assetList->HumanoidSkeletalMesh);
 	RemoveObject(assetList->HumanoidRig);
 
@@ -251,6 +248,99 @@ static bool RenewPkgAndSaveObject(UObject *u, bool bSave) {
 
 #endif
 	return true;
+}
+
+static UTexture2D* LocalGetTexture(const aiScene* mScenePtr, int texIndex) {
+
+	if (texIndex < 0 || texIndex >= (int)mScenePtr->mNumTextures) {
+		return nullptr;
+	}
+
+	IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+	TSharedPtr<IImageWrapper> ImageWrapper;
+	// Note: PNG format.  Other formats are supported
+	ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+
+	auto& t = *mScenePtr->mTextures[texIndex];
+	int Width = t.mWidth;
+	int Height = t.mHeight;
+#if	UE_VERSION_OLDER_THAN(4,25,0)
+#else
+	TArray<uint8> RawData;
+#endif
+	const TArray<uint8>* pRawData = nullptr;
+
+	if (Height == 0) {
+		if (ImageWrapper->SetCompressed(t.pcData, t.mWidth)) {
+
+		}
+		Width = ImageWrapper->GetWidth();
+		Height = ImageWrapper->GetHeight();
+
+		if (Width == 0 || Height == 0) {
+			return nullptr;
+		}
+
+#if	UE_VERSION_OLDER_THAN(4,25,0)
+		ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, pRawData);
+#else
+		ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, RawData);
+		pRawData = &RawData;
+#endif
+	}
+	FString baseName;
+
+	auto *NewTexture2D = VRMLoaderUtil::CreateTexture(Width, Height, FString(TEXT("T_")) + baseName, GetTransientPackage());
+	//UTexture2D* NewTexture2D = _CreateTransient(Width, Height, PF_B8G8R8A8, t.mFilename.C_Str());
+
+	// Fill in the base mip for the texture we created
+	uint8* MipData = (uint8*)GetPlatformData(NewTexture2D)->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+	if (pRawData) {
+		FMemory::Memcpy(MipData, pRawData->GetData(), pRawData->Num());
+	}
+	else {
+		for (int32 y = 0; y < Height; y++)
+		{
+			const aiTexel* c = &(t.pcData[y * Width]);
+			uint8* DestPtr = &MipData[y * Width * sizeof(FColor)];
+			for (int32 x = 0; x < Width; x++)
+			{
+				*DestPtr++ = c->b;
+				*DestPtr++ = c->g;
+				*DestPtr++ = c->r;
+				*DestPtr++ = c->a;
+				c++;
+			}
+		}
+	}
+	GetPlatformData(NewTexture2D)->Mips[0].BulkData.Unlock();
+
+	// Set options
+	NewTexture2D->SRGB = true;// bUseSRGB;
+	NewTexture2D->CompressionSettings = TC_Default;
+	NewTexture2D->AddressX = TA_Wrap;
+	NewTexture2D->AddressY = TA_Wrap;
+
+#if WITH_EDITORONLY_DATA
+	NewTexture2D->CompressionNone = false;
+	NewTexture2D->DeferCompression = true;
+
+	// nomipmap for tmporary thumbnail
+	//if (VRMConverter::Options::Get().IsMipmapGenerateMode()) {
+	//	NewTexture2D->MipGenSettings = TMGS_FromTextureGroup;
+	//} else {
+	NewTexture2D->MipGenSettings = TMGS_NoMipmaps;
+	//}
+	NewTexture2D->Source.Init(Width, Height, 1, 1, ETextureSourceFormat::TSF_BGRA8, pRawData->GetData());
+	//NewTexture2D->Source.Compress();
+#endif
+
+// Update the remote texture data
+	NewTexture2D->UpdateResource();
+#if WITH_EDITOR
+	NewTexture2D->PostEditChange();
+#endif
+	return NewTexture2D;
 }
 
 static void UpdateProgress(int prog) {
@@ -398,7 +488,37 @@ namespace {
 #endif
 }
 
-UVrmLicenseObject* ULoaderBPFunctionLibrary::GetVRMMeta(FString filepath) {
+bool ULoaderBPFunctionLibrary::IsValidVRM4UFile(FString filepath) {
+
+	UE_LOG(LogVRM4ULoader, Log, TEXT("IsValidVRM: OrigFileName=%s"), *filepath);
+
+	const FString ext = FPaths::GetExtension(filepath);
+	if (ext.Compare(TEXT("vrm"), ESearchCase::IgnoreCase) && ext.Compare(TEXT("vrma"), ESearchCase::IgnoreCase)) {
+		// vrm, vrma以外は素通し
+		return true;
+	}
+
+	std::string file;
+#if PLATFORM_WINDOWS
+	file = utf_16_to_shift_jis(*filepath);
+#else
+	file = TCHAR_TO_UTF8(*filepath);
+#endif
+
+	UE_LOG(LogVRM4ULoader, Log, TEXT("IsValidVRM: std::stringFileName=%hs"), file.c_str());
+
+	TArray<uint8> Res;
+	if (FFileHelper::LoadFileToArray(Res, *filepath)) {
+		UE_LOG(LogVRM4ULoader, Log, TEXT("IsValidVRM: filesize=%d"), Res.Num());
+
+		extern bool VRMIsValid(const uint8_t * pData, size_t size);
+			
+		return VRMIsValid(Res.GetData(), Res.Num());
+	}
+	return false;
+}
+
+void ULoaderBPFunctionLibrary::GetVRMMeta(FString filepath, UVrmLicenseObject*& a, UVrm1LicenseObject*& b) {
 
 	UE_LOG(LogVRM4ULoader, Log, TEXT("GetVRMMeta:OrigFileName=%s"), *filepath);
 
@@ -409,11 +529,13 @@ UVrmLicenseObject* ULoaderBPFunctionLibrary::GetVRMMeta(FString filepath) {
 	file = TCHAR_TO_UTF8(*filepath);
 #endif
 
-	UE_LOG(LogVRM4ULoader, Log, TEXT("GetVRMMeta:std::stringFileName=%s"), file.c_str());
+	UE_LOG(LogVRM4ULoader, Log, TEXT("GetVRMMeta:std::stringFileName=%hs"), file.c_str());
 
 	Assimp::Importer mImporter;
+	mImporter.SetPropertyBool(AI_CONFIG_IMPORT_REMOVE_EMPTY_BONES, false);
 	const aiScene *mScenePtr = nullptr; // delete by Assimp::Importer::~Importer
 
+	VRMConverter vc;
 	{
 		TArray<uint8> Res;
 		if (FFileHelper::LoadFileToArray(Res, *filepath)) {
@@ -427,124 +549,67 @@ UVrmLicenseObject* ULoaderBPFunctionLibrary::GetVRMMeta(FString filepath) {
 		std::string e = TCHAR_TO_UTF8(*ext);
 #endif
 
+		e = GetExtAndSetModelTypeLocal(e, Res.GetData(), Res.Num());
+
 		mScenePtr = mImporter.ReadFileFromMemory(Res.GetData(), Res.Num(),
 			aiProcess_Triangulate | aiProcess_MakeLeftHanded | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_OptimizeMeshes,
 			e.c_str());
 
+		UE_LOG(LogVRM4ULoader, Log, TEXT("GetVRMMeta: mScenePtr=%p"), mScenePtr);
+
+		if (mScenePtr == nullptr) {
+			return;
+		}
+
 		//UE_LOG(LogVRM4ULoader, Log, TEXT("VRM:(%3.3lf secs) ReadFileFromMemory"), FPlatformTime::Seconds() - StartTime);
 
-		UE_LOG(LogVRM4ULoader, Log, TEXT("GetVRMMeta: mScenePtr=%p"), mScenePtr);
-	}
-	if (mScenePtr == nullptr) {
-		return nullptr;
-	}
-	UTexture2D* NewTexture2D = nullptr;
 
-	VRM::VRMMetadata *meta = reinterpret_cast<VRM::VRMMetadata*>(mScenePtr->mVRMMeta);
+		{
+			// vrm version check
 
-	//mScenePtr->mTextures[0]->mFilename
-
-	if (meta) {
-		for (int i = 0; i < meta->license.licensePairNum; ++i) {
-
-			auto &p = meta->license.licensePair[i];
-
-			if (FString(TEXT("texture")) == p.Key.C_Str()) {
-				unsigned int texIndex = FCString::Atoi(*FString(p.Value.C_Str()));
-				if (texIndex >= 0 && texIndex < mScenePtr->mNumTextures) {
-
-					IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
-					TSharedPtr<IImageWrapper> ImageWrapper;
-					// Note: PNG format.  Other formats are supported
-					ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
-
-					auto &t = *mScenePtr->mTextures[texIndex];
-					int Width = t.mWidth;
-					int Height = t.mHeight;
-#if	UE_VERSION_OLDER_THAN(4,25,0)
-#else
-					TArray<uint8> RawData;
-#endif
-					const TArray<uint8>* pRawData = nullptr;
-
-					if (Height == 0) {
-						if (ImageWrapper->SetCompressed(t.pcData, t.mWidth)) {
-
-						}
-						Width = ImageWrapper->GetWidth();
-						Height = ImageWrapper->GetHeight();
-
-						if (Width == 0 || Height == 0) {
-							continue;
-						}
-
-#if	UE_VERSION_OLDER_THAN(4,25,0)
-						ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, pRawData);
-#else
-						ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, RawData);
-						pRawData = &RawData;
-#endif
-					}
-					FString baseName;
-
-					NewTexture2D = VRMUtil::CreateTexture(Width, Height, FString(TEXT("T_")) + baseName, GetTransientPackage());
-					//UTexture2D* NewTexture2D = _CreateTransient(Width, Height, PF_B8G8R8A8, t.mFilename.C_Str());
-
-					// Fill in the base mip for the texture we created
-					uint8* MipData = (uint8*)GetPlatformData(NewTexture2D)->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
-					if (pRawData) {
-						FMemory::Memcpy(MipData, pRawData->GetData(), pRawData->Num());
-					} else {
-						for (int32 y = 0; y < Height; y++)
-						{
-							const aiTexel *c = &(t.pcData[y*Width]);
-							uint8* DestPtr = &MipData[y * Width * sizeof(FColor)];
-							for (int32 x = 0; x < Width; x++)
-							{
-								*DestPtr++ = c->b;
-								*DestPtr++ = c->g;
-								*DestPtr++ = c->r;
-								*DestPtr++ = c->a;
-								c++;
-							}
-						}
-					}
-					GetPlatformData(NewTexture2D)->Mips[0].BulkData.Unlock();
-
-					// Set options
-					NewTexture2D->SRGB = true;// bUseSRGB;
-					NewTexture2D->CompressionSettings = TC_Default;
-					NewTexture2D->AddressX = TA_Wrap;
-					NewTexture2D->AddressY = TA_Wrap;
-
-#if WITH_EDITORONLY_DATA
-					NewTexture2D->CompressionNone = false;
-					NewTexture2D->DeferCompression = true;
-
-					// nomipmap for tmporary thumbnail
-					//if (VRMConverter::Options::Get().IsMipmapGenerateMode()) {
-					//	NewTexture2D->MipGenSettings = TMGS_FromTextureGroup;
-					//} else {
-						NewTexture2D->MipGenSettings = TMGS_NoMipmaps;
-					//}
-					NewTexture2D->Source.Init(Width, Height, 1, 1, ETextureSourceFormat::TSF_BGRA8, pRawData->GetData());
-					//NewTexture2D->Source.Compress();
-#endif
-
-		// Update the remote texture data
-					NewTexture2D->UpdateResource();
-#if WITH_EDITOR
-					NewTexture2D->PostEditChange();
-#endif
-				}
+			extern bool VRMIsVRM10(const uint8 * pData, size_t size);
+			if (VRMIsVRM10(Res.GetData(), Res.Num())) {
+				VRMConverter::Options::Get().SetVRM10Model(true);
+				vc.Init(Res.GetData(), Res.Num(), nullptr);
 			}
-
 		}
 	}
-	VRMConverter vc;
-	auto *p = vc.GetVRMMeta(mScenePtr);
-	p->thumbnail = NewTexture2D;
-	return p;
+
+	UTexture2D* NewTexture2D = nullptr;
+
+	if (VRMConverter::Options::Get().IsVRM10Model()) {
+		int texIndex = vc.GetThumbnailTextureIndex();
+		NewTexture2D = LocalGetTexture(mScenePtr, texIndex);
+	}else{
+		VRM::VRMMetadata* meta = reinterpret_cast<VRM::VRMMetadata*>(mScenePtr->mVRMMeta);
+
+		if (meta) {
+			for (int i = 0; i < meta->license.licensePairNum; ++i) {
+
+				auto& p = meta->license.licensePair[i];
+
+				if (FString(TEXT("texture")) != p.Key.C_Str()) {
+					continue;
+				}
+
+				unsigned int texIndex = FCString::Atoi(*FString(p.Value.C_Str()));
+				NewTexture2D = LocalGetTexture(mScenePtr, texIndex);
+				if (NewTexture2D) {
+					break;
+				}
+			}
+		}
+	}
+
+	UVrmLicenseObject* m = nullptr;
+	UVrm1LicenseObject* m1 = nullptr;
+	vc.GetVRMMeta(mScenePtr, m, m1);
+
+	if (m) m->thumbnail = NewTexture2D;
+	if (m1) m1->thumbnail = NewTexture2D;
+
+	a = m;
+	b = m1;
 }
 
 bool ULoaderBPFunctionLibrary::VRMSetLoadMaterialType(EVRMImportMaterialType type) {
@@ -554,12 +619,14 @@ bool ULoaderBPFunctionLibrary::VRMSetLoadMaterialType(EVRMImportMaterialType typ
 
 bool ULoaderBPFunctionLibrary::LoadVRMFile(const UVrmAssetListObject *InVrmAsset, UVrmAssetListObject *&OutVrmAsset, const FString filepath, const FImportOptionData &OptionForRuntimeLoad) {
 	VRMConverter::Options::Get().SetVrmOption(&OptionForRuntimeLoad);
+	OutVrmAsset = nullptr;
 
 	return LoadVRMFileLocal(InVrmAsset, OutVrmAsset, filepath);
 }
 
 void ULoaderBPFunctionLibrary::LoadVRMFileAsync(const UObject* WorldContextObject, const class UVrmAssetListObject* InVrmAsset, class UVrmAssetListObject*& OutVrmAsset, const FString filepath, const FImportOptionData& OptionForRuntimeLoad, struct FLatentActionInfo LatentInfo) {
 	VRMConverter::Options::Get().SetVrmOption(&OptionForRuntimeLoad);
+	OutVrmAsset = nullptr;
 
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
@@ -575,7 +642,6 @@ void ULoaderBPFunctionLibrary::LoadVRMFileAsync(const UObject* WorldContextObjec
 
 
 bool ULoaderBPFunctionLibrary::LoadVRMFileLocal(const UVrmAssetListObject* InVrmAsset, UVrmAssetListObject*& OutVrmAsset, const FString filepath) {
-
 	TArray<uint8> Res;
 	if (FFileHelper::LoadFileToArray(Res, *filepath)) {
 	}
@@ -612,6 +678,7 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemoryDefaultOption(UVrmAssetListO
 bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *InVrmAsset, UVrmAssetListObject *&OutVrmAsset, const FString filepath, const uint8 *pFileDataData, size_t dataSize) {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("LoadVRMFileFromMemory"))
 
+	OutVrmAsset = nullptr;
 	RenderControl _dummy_control;
 
 	if (InVrmAsset == nullptr) {
@@ -619,6 +686,7 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 	}
 
 	Assimp::Importer mImporter;
+	mImporter.SetPropertyBool(AI_CONFIG_IMPORT_REMOVE_EMPTY_BONES, false);
 	const aiScene* mScenePtr = nullptr; // delete by Assimp::Importer::~Importer
 
 	if (filepath.IsEmpty())
@@ -644,34 +712,10 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 		std::string e_imp = TCHAR_TO_UTF8(*ext);
 #endif
 
-		VRMConverter::Options::Get().ClearModelType();
-
-		if (e.compare("vrm") == 0 || e.compare("glb") == 0 || e.compare("gltf") == 0) {
-
-			VRMConverter::Options::Get().SetVRM0Model(true);
-
-			extern bool VRMIsVRM10(const uint8 * pData, size_t size);
-			if (VRMIsVRM10(pFileDataData, dataSize)) {
-				VRMConverter::Options::Get().SetVRM10Model(true);
-			}
-		}
-
-		if (e.compare("vrma") == 0) {
-			VRMConverter::Options::Get().SetVRMAModel(true);
-			VRMConverter::Options::Get().SetNoMesh(true);
-			e_imp = "vrm";
-			VRMConverter::Options::Get().SetBVHModel(true);
-		}
-
-		if (e.compare("bvh") == 0) {
-			VRMConverter::Options::Get().SetBVHModel(true);
-		}
-		if (e.compare("pmx") == 0) {
-			VRMConverter::Options::Get().SetPMXModel(true);
-		}
+		e_imp = GetExtAndSetModelTypeLocal(e, pFileDataData, dataSize);
 
 		mScenePtr = mImporter.ReadFileFromMemory(pFileDataData, dataSize,
-			aiProcess_Triangulate | aiProcess_MakeLeftHanded | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_OptimizeMeshes,
+			aiProcess_Triangulate | aiProcess_MakeLeftHanded | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_OptimizeMeshes | aiProcess_PopulateArmatureData,
 			e_imp.c_str());
 
 		if (mScenePtr == nullptr) {
@@ -681,7 +725,7 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 #else
 			file = TCHAR_TO_UTF8(*filepath);
 #endif
-			mScenePtr = mImporter.ReadFile(file, aiProcess_Triangulate | aiProcess_MakeLeftHanded | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_OptimizeMeshes);
+			mScenePtr = mImporter.ReadFile(file, aiProcess_Triangulate | aiProcess_MakeLeftHanded | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_OptimizeMeshes | aiProcess_PopulateArmatureData);
 		}
 
 		UE_LOG(LogVRM4ULoader, Log, TEXT("VRM:(%3.3lf secs) ReadFileFromMemory"), FPlatformTime::Seconds() - StartTime);
@@ -770,16 +814,18 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 		}
 
 		//meta rename
-		vc.ConvertVrmMetaRenamed(out, mScenePtr, pFileDataData, dataSize);
+		vc.ConvertVrmMetaPost(out, mScenePtr, pFileDataData, dataSize);
 
 		ret &= vc.ConvertRig(out);
 		LogAndUpdate(TEXT("ConvertRig"));
-		ret &= vc.ConvertPose(out);
-		LogAndUpdate(TEXT("ConvertPose"));
+		ret &= vc.ConvertIKRig(out);
+		LogAndUpdate(TEXT("ConvertIKRig"));
 		if (out->bSkipMorphTarget == false) {
 			ret &= vc.ConvertMorphTarget(out);
 			LogAndUpdate(TEXT("ConvertMorphTarget"));
 		}
+		ret &= vc.ConvertPose(out);
+		LogAndUpdate(TEXT("ConvertPose"));
 		ret &= vc.ConvertHumanoid(out);
 		LogAndUpdate(TEXT("ConvertHumanoid"));
 		UpdateProgress(80);
@@ -789,8 +835,17 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 			RemoveAssetList(out);
 			return false;
 		}
+		{
+			// 後処理。UE5.7ではCreateMeshDescription を呼ぶため必要
+			if (out->SkeletalMesh) {
+				out->SkeletalMesh->PostLoad();
+			}
+		}
 	}
 	out->VrmMetaObject->SkeletalMesh = out->SkeletalMesh;
+
+	VRMSetPhysicsAsset(out->VrmMetaObject->SkeletalMesh, nullptr);
+
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("VRM Save"))
@@ -814,6 +869,7 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 		RenewPkgAndSaveObject(out->VrmHumanoidMetaObject, b);
 		RenewPkgAndSaveObject(out->VrmMannequinMetaObject, b);
 		RenewPkgAndSaveObject(out->VrmLicenseObject, b);
+		RenewPkgAndSaveObject(out->Vrm1LicenseObject, b);
 		RenewPkgAndSaveObject(out->HumanoidSkeletalMesh, b);
 		RenewPkgAndSaveObject(out->HumanoidRig, b);
 
@@ -850,6 +906,7 @@ bool ULoaderBPFunctionLibrary::LoadVRMFileFromMemory(const UVrmAssetListObject *
 bool ULoaderBPFunctionLibrary::CopyPhysicsAsset(USkeletalMesh *dstMesh, const USkeletalMesh *srcMesh, bool bResetCollisionTransform){
 	//GetTransientPackage
 #if WITH_EDITOR
+#if	UE_VERSION_OLDER_THAN(5,4,0)
 	if (srcMesh == nullptr || dstMesh == nullptr) return false;
 
 	auto  *srcPA = VRMGetPhysicsAsset(srcMesh);
@@ -994,8 +1051,8 @@ bool ULoaderBPFunctionLibrary::CopyPhysicsAsset(USkeletalMesh *dstMesh, const US
 
 	dstPA->RefreshPhysicsAssetChange();
 	dstPA->UpdateBoundsBodiesArray();
-
-#endif
+#endif // 5.4
+#endif // editor
 
 	return true;
 }
@@ -1005,6 +1062,7 @@ bool ULoaderBPFunctionLibrary::CopyVirtualBone(USkeletalMesh *dstMesh, const USk
 	if (dstMesh == nullptr || srcMesh == nullptr) {
 		return false;
 	}
+#if	UE_VERSION_OLDER_THAN(5,4,0)
 
 	// virtual bone
 	{
@@ -1100,13 +1158,9 @@ bool ULoaderBPFunctionLibrary::CopyVirtualBone(USkeletalMesh *dstMesh, const USk
 				int32 bone2 = VRMGetRefSkeleton(dstMesh).FindBoneIndex(n);
 
 				auto getBoneTransform = [](auto &mesh, int32 bone) {
-#if WITH_EDITOR
-					return VRMGetRetargetBasePose(mesh)[bone];
-#else
 					auto &f = VRMGetRefSkeleton(mesh).GetRefBonePose();
 					if (bone < f.Num()) return f[bone];
 					return FTransform();
-#endif
 				};
 
 				FTransform f1;
@@ -1144,27 +1198,10 @@ bool ULoaderBPFunctionLibrary::CopyVirtualBone(USkeletalMesh *dstMesh, const USk
 		}
 	}
 	VRMGetSkeleton(dstMesh)->MarkPackageDirty();
-
+#else
+	// todo
+#endif
 	return true;
-}
-
-
-namespace {
-	int32 GetDirectChildBonesLocal(FReferenceSkeleton &refs, int32 ParentBoneIndex, TArray<int32> & Children)
-	{
-		Children.Reset();
-
-		const int32 NumBones = refs.GetNum();
-		for (int32 ChildIndex = ParentBoneIndex + 1; ChildIndex < NumBones; ChildIndex++)
-		{
-			if (ParentBoneIndex == refs.GetParentIndex(ChildIndex))
-			{
-				Children.Add(ChildIndex);
-			}
-		}
-
-		return Children.Num();
-	}
 }
 
 
@@ -1198,7 +1235,7 @@ bool ULoaderBPFunctionLibrary::CreateTailBone(USkeletalMesh *skeletalMesh, const
 
 	for (int i = 0; i < tail.Num(); ++i) {
 		TArray<int32> children;
-		GetDirectChildBonesLocal(VRMGetRefSkeleton(sk_tmp), tail[i], children);
+		VRMUtil::GetDirectChildBones(VRMGetRefSkeleton(sk_tmp), tail[i], children);
 		if (children.Num()) {
 			tail.RemoveAt(i);
 			tail.Append(children);
@@ -1300,13 +1337,20 @@ static void LocalEpicSkeletonSetup(UIKRigController *rigcon) {
 #if	UE_VERSION_OLDER_THAN(5,2,0)
 		sol_index = rigcon->AddSolver(UIKRigPBIKSolver::StaticClass());
 		sol = rigcon->GetSolver(sol_index);
-#else
+#elif UE_VERSION_OLDER_THAN(5,6,0)
 		sol_index = rigcon->AddSolver(UIKRigFBIKSolver::StaticClass());
+		sol = rigcon->GetSolverAtIndex(sol_index);
+#else
+		sol_index = rigcon->AddSolver(FIKRigFullBodyIKSolver::StaticStruct());
 		sol = rigcon->GetSolverAtIndex(sol_index);
 #endif
 	}
 	if (sol == nullptr) return;
+#if	UE_VERSION_OLDER_THAN(5,6,0)
 	sol->SetRootBone(TEXT("root"));
+#else
+	sol->SetStartBone(TEXT("root"));
+#endif
 
 	{
 		TArray<FString> a = {

@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "VrmAssetListThumbnailRenderer.h"
 #include "Engine/EngineTypes.h"
@@ -16,6 +16,7 @@
 
 #include "VrmAssetListObject.h"
 #include "VrmLicenseObject.h"
+#include "Vrm1LicenseObject.h"
 #include "VrmMetaObject.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -34,6 +35,14 @@ UClass* FAssetTypeActions_VrmLicense::GetSupportedClass() const {
 FText FAssetTypeActions_VrmLicense::GetName() const {
 	return NSLOCTEXT("AssetTypeActions", "FAssetTypeActions_VrmLicense", "Vrm License");
 }
+
+UClass* FAssetTypeActions_Vrm1License::GetSupportedClass() const {
+	return UVrm1LicenseObject::StaticClass();
+}
+FText FAssetTypeActions_Vrm1License::GetName() const {
+	return NSLOCTEXT("AssetTypeActions", "FAssetTypeActions_Vrm1License", "Vrm1 License");
+}
+
 UClass* FAssetTypeActions_VrmMeta::GetSupportedClass() const {
 	return UVrmMetaObject::StaticClass();
 }
@@ -54,6 +63,13 @@ TSharedPtr<SWidget> FAssetTypeActions_VrmBase::GetThumbnailOverlay(const FAssetD
 	}
 	if (str.Len() == 0){
 		TWeakObjectPtr<UVrmLicenseObject> a = Cast<UVrmLicenseObject>(AssetData.GetAsset());
+		if (a.Get()) {
+			str = TEXT(" License ");
+			col.A = 128;
+		}
+	}
+	if (str.Len() == 0) {
+		TWeakObjectPtr<UVrm1LicenseObject> a = Cast<UVrm1LicenseObject>(AssetData.GetAsset());
 		if (a.Get()) {
 			str = TEXT(" License ");
 			col.A = 128;
@@ -81,7 +97,7 @@ TSharedPtr<SWidget> FAssetTypeActions_VrmBase::GetThumbnailOverlay(const FAssetD
 			.Text(txt)
 			.HighlightText(txt)
 			.HighlightColor(FColor(64,64,64))
-			.ShadowOffset(FVector2D(1.0f, 1.0f))
+			//.ShadowOffset(FVector2D(1.0f, 1.0f))
 		];
 
 	//return FAssetTypeActions_Base::GetThumbnailOverlay(AssetData);
@@ -105,8 +121,17 @@ void UVrmAssetListThumbnailRenderer::GetThumbnailSize(UObject* Object, float Zoo
 			if (tex) {
 				return Super::GetThumbnailSize(tex, Zoom, OutWidth, OutHeight);
 			}
+		}
+		if (a->Vrm1LicenseObject) {
+			auto tex = a->SmallThumbnailTexture;
+			if (tex == nullptr) {
+				tex = a->Vrm1LicenseObject->thumbnail;
+			}
+			if (tex) {
+				return Super::GetThumbnailSize(tex, Zoom, OutWidth, OutHeight);
+		}
 	}
-	}
+}
 	Super::GetThumbnailSize(Object, Zoom, OutWidth, OutHeight);
 }
 
@@ -123,12 +148,17 @@ void UVrmAssetListThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uin
 	if (tex == nullptr){
 		UVrmAssetListObject* a = Cast<UVrmAssetListObject>(Object);
 		if (a) {
-			sk = a->SkeletalMesh;
 			tex = a->SmallThumbnailTexture;
 			if (tex == nullptr) {
 				if (a->VrmLicenseObject) {
 					tex = a->VrmLicenseObject->thumbnail;
 				}
+				if (a->Vrm1LicenseObject) {
+					tex = a->Vrm1LicenseObject->thumbnail;
+				}
+			}
+			if (a->SkeletalMesh) {
+				sk = a->SkeletalMesh;
 			}
 		}
 	}
@@ -137,16 +167,25 @@ void UVrmAssetListThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uin
 		{
 			UVrmMetaObject* a = Cast<UVrmMetaObject>(Object);
 			if (a) {
-				UPackage *pk = a->GetOutermost();
-				GetObjectsWithOuter(pk, ret);
 				sk = a->SkeletalMesh;
-				//no tex
+				if (a->VrmAssetListObject) {
+					tex = a->VrmAssetListObject->SmallThumbnailTexture;
+				}
 			}
 		}
 		{
 			UVrmLicenseObject* a = Cast<UVrmLicenseObject>(Object);
 			if (a) {
 				UPackage *pk = a->GetOutermost();
+				GetObjectsWithOuter(pk, ret);
+				// no sk
+				tex = a->thumbnail;
+			}
+		}
+		{
+			UVrm1LicenseObject* a = Cast<UVrm1LicenseObject>(Object);
+			if (a) {
+				UPackage* pk = a->GetOutermost();
 				GetObjectsWithOuter(pk, ret);
 				// no sk
 				tex = a->thumbnail;
@@ -195,4 +234,25 @@ void UVrmAssetListThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uin
 #endif
 
 }
+
+#if	UE_VERSION_OLDER_THAN(5,5,0)
+#else
+bool UVrmAssetListThumbnailRenderer::CanVisualizeAsset(UObject* Object)
+{
+
+	if (UVrmLicenseObject* a = Cast<UVrmLicenseObject>(Object)) {
+		if (a->thumbnail == nullptr) {
+			return false;
+		}
+	}
+	if (UVrm1LicenseObject* a = Cast<UVrm1LicenseObject>(Object)) {
+		if (a->thumbnail == nullptr) {
+			return false;
+		}
+	}
+
+	return true;
+	//return UTextureThumbnailRenderer::CanVisualizeAsset(Object);
+}
+#endif
 

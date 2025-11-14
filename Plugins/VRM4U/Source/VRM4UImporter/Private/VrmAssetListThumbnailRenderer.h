@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -36,6 +36,13 @@ public:
 	virtual FText GetName() const override;
 	virtual UClass* GetSupportedClass() const override;
 };
+class FAssetTypeActions_Vrm1License : public FAssetTypeActions_VrmBase
+{
+public:
+	// IAssetTypeActions Implementation
+	virtual FText GetName() const override;
+	virtual UClass* GetSupportedClass() const override;
+};
 class FAssetTypeActions_VrmMeta : public FAssetTypeActions_VrmBase
 {
 public:
@@ -60,6 +67,11 @@ class UVrmAssetListThumbnailRenderer : public UTextureThumbnailRenderer
 	virtual void Draw(UObject* Object, int32 X, int32 Y, uint32 Width, uint32 Height, FRenderTarget*, FCanvas* Canvas, bool bAdditionalViewFamily) override;
 #endif
 	// End of UThumbnailRenderer interface
+
+#if	UE_VERSION_OLDER_THAN(5,5,0)
+#else
+	virtual bool CanVisualizeAsset(UObject* Object) override;
+#endif
 
 protected:
 	//void DrawFrame(class UPaperSprite* Sprite, int32 X, int32 Y, uint32 Width, uint32 Height, FRenderTarget*, FCanvas* Canvas, FBoxSphereBounds* OverrideRenderBounds);

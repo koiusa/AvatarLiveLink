@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -12,6 +12,7 @@
 #include "AnimNode_VrmConstraint.generated.h"
 
 class UVrmMetaObject;
+class UVrmAssetListObject;
 
 /**
 *	Simple controller that replaces or adds to the translation/rotation of a single bone.
@@ -21,8 +22,20 @@ struct VRM4U_API FAnimNode_VrmConstraint : public FAnimNode_SkeletalControlBase
 {
 	GENERATED_USTRUCT_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta = (PinHiddenByDefault))
+	bool EnableAutoSearchMetaData = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta=(PinHiddenByDefault))
 	const UVrmMetaObject *VrmMetaObject = nullptr;
+
+#if	UE_VERSION_OLDER_THAN(5,0,0)
+	TAssetPtr<UVrmMetaObject> VrmMetaObject_Internal = nullptr;
+	TAssetPtr<UVrmAssetListObject> VrmAssetListObject_Internal = nullptr;
+#else
+	TSoftObjectPtr<UVrmMetaObject> VrmMetaObject_Internal = nullptr;
+	TSoftObjectPtr<UVrmAssetListObject> VrmAssetListObject_Internal = nullptr;
+#endif
+
 
 	bool bCallInitialized = false;
 

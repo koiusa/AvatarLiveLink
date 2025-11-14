@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -10,8 +10,11 @@
 #if	UE_VERSION_OLDER_THAN(5,1,0)
 #else
 #include "Engine/SkinnedAssetCommon.h"
+#include "Engine/SkinnedAsset.h"
 #endif
 
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "VrmUtil.generated.h"
 
 class USkeleton;
@@ -116,8 +119,13 @@ void VRMSetRefSkeleton(TObjectPtr<T> t, const FReferenceSkeleton& refsk) {
 //refskeleton end
 
 // morph targets
+#if	UE_VERSION_OLDER_THAN(5,4,0)
 template<typename T>
 TArray<UMorphTarget*>& VRMGetMorphTargets(T* t) {
+#else
+template<typename T>
+TArray<TObjectPtr<UMorphTarget>>& VRMGetMorphTargets(T * t) {
+#endif
 #if	UE_VERSION_OLDER_THAN(4,27,0)
 	return t->MorphTargets;
 #else
@@ -168,8 +176,13 @@ UPhysicsAsset* VRMGetPhysicsAsset(T* t) {
 }
 
 // nodemappingdata
+#if	UE_VERSION_OLDER_THAN(5,4,0)
 template<typename T>
 TArray<class UNodeMappingContainer*>& VRMGetNodeMappingData(T* t) {
+#else
+template<typename T>
+TArray<TObjectPtr<class UNodeMappingContainer>>& VRMGetNodeMappingData(T * t) {
+#endif
 #if	UE_VERSION_OLDER_THAN(4,27,0)
 	return t->NodeMappingData;
 #else
@@ -225,8 +238,10 @@ template<typename T>
 void VRMSetUseLegacyMeshDerivedDataKey(T* t, bool b) {
 #if	UE_VERSION_OLDER_THAN(4,27,0)
 	t->UseLegacyMeshDerivedDataKey = b;
-#else
+#elif UE_VERSION_OLDER_THAN(5,4,0)
 	t->SetUseLegacyMeshDerivedDataKey(b);
+#else
+	// ue5.4 no action
 #endif
 }
 
@@ -238,14 +253,28 @@ VRM4U_API void VRMAddRetargetChain(class UIKRigController* con, FName name, FNam
 
 
 //template<typename T>
-FORCEINLINE  USkeletalMesh *VRMGetSkinnedAsset(USkeletalMeshComponent* t) {
+FORCEINLINE  USkeletalMesh *VRMGetSkeletalMeshAsset(USkeletalMeshComponent* t) {
 #if	UE_VERSION_OLDER_THAN(5,1,0)
 	return t->SkeletalMesh;
 #else
 	return (t->GetSkeletalMeshAsset());
 #endif
 }
-FORCEINLINE  USkeletalMesh *VRMGetSkinnedAsset(TWeakObjectPtr<USkeletalMeshComponent> t) {
+FORCEINLINE  const USkeletalMesh* VRMGetSkeletalMeshAsset(const USkeletalMeshComponent* t) {
+#if	UE_VERSION_OLDER_THAN(5,1,0)
+	return t->SkeletalMesh;
+#else
+	return (t->GetSkeletalMeshAsset());
+#endif
+}
+FORCEINLINE  USkeletalMesh *VRMGetSkeletalMeshAsset(TWeakObjectPtr<USkeletalMeshComponent> t) {
+#if	UE_VERSION_OLDER_THAN(5,1,0)
+	return t->SkeletalMesh;
+#else
+	return (t->GetSkeletalMeshAsset());
+#endif
+}
+FORCEINLINE  const USkeletalMesh* VRMGetSkeletalMeshAsset(TWeakObjectPtr<const USkeletalMeshComponent> t) {
 #if	UE_VERSION_OLDER_THAN(5,1,0)
 	return t->SkeletalMesh;
 #else
@@ -315,6 +344,13 @@ public:
 	static const bool VRM4U_UseBC7 = true;
 #endif
 
+#if UE_VERSION_OLDER_THAN(5,2,0)
+	static const bool VRM4U_UseUE5Mat = false;
+#else
+	static const bool VRM4U_UseUE5Mat = true;
+#endif
+
+
 	void init();
 
 	bool bUEFN = false;
@@ -340,12 +376,21 @@ public:
 	float PlayRateScale = 1.0f;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bRemoveRootBoneRotation = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bRemoveRootBonePosition = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bVrm10RemoveLocalRotation = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bVrm10UseBindToRestPose = true;
 
 	bool bVrm10Bindpose = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
-	bool bStrictBoneName = false;
+	bool bForceOriginalBoneName = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bGenerateHumanoidRenamedMesh = false;
@@ -358,11 +403,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bSkipPhysics = true;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bSkipRetargeter = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bSkipMorphTarget = false;
 
 	bool bEnableMorphTargetNormal = false;
 	
-	bool bStrictMorphTargetNameMode = false;
+	bool bForceOriginalMorphTargetName = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bRemoveBlendShapeGroupPrefix = false;
@@ -374,7 +423,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bForceTwoSided = false;
 
-	bool bSingleUAssetFile = true;
+	bool bSingleUAssetFile = false;
 
 	bool bDefaultGridTextureMode = false;
 
@@ -385,13 +434,16 @@ public:
 	bool bMipmapGenerateMode = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bUseUE5Material = VRM4U_UseUE5Mat;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bGenerateOutlineMaterial = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bMergeMaterial = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
-	bool bMergePrimitive = true;
+	bool bMergePrimitive = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bOptimizeVertex = true;
@@ -405,7 +457,15 @@ public:
 
 	bool bSkipNoMeshBone = false;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bIgnoreVRMValidation = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
 	bool bDebugOneBone = false;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bDebugNoMesh = false;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "VRM4U")
+	bool bDebugNoMaterial = false;
 
 	UPROPERTY()
 	class USkeleton* Skeleton = nullptr;
@@ -486,13 +546,44 @@ public:
 	};
 
 
-	//static bool LoadImageFromMemory(const char* Buffer, const size_t Length, VRMUtil::FImportImage& OutImage);
-	static bool LoadImageFromMemory(const void* Buffer, const size_t Length, VRMUtil::FImportImage& OutImage);
-
-	static UTexture2D* CreateTexture(int32 InSizeX, int32 InSizeY, FString name, UPackage* package);
-	static UTexture2D* CreateTextureFromImage(FString name, UPackage* package, const void* Buffer, const size_t Length, bool GenerateMip=false, bool bRuntimeMode=false);
-
-
 	static bool IsNoSafeName(const FString& str);
 	static FString GetSafeNewName(const FString& str);
+	static FString MakeName(const FString& str, bool IsJoint = false);
+	static FName GetSanitizedName(const FString& str);
+
+	static int32 GetDirectChildBones(FReferenceSkeleton& refs, int32 ParentBoneIndex, TArray<int32>& Children);
+
+	static class UVrmAssetListObject* GetAssetListObjectAny(const UObject* obj);
+	static class UVrmAssetListObject* GetAssetListObject(const USkeletalMesh *);
+
+	static void CloseEditorWindowByFolderPath(const UObject* obj);
+
+	static int GetChildBone(const USkeleton* skeleton, const int32 ParentBoneIndex, bool recursive, TArray<int32>& Children);
+	static int GetChildBone(const USkeleton* skeleton, const int32 ParentBoneIndex, TArray<int32>& Children) {
+		return GetChildBone(skeleton, ParentBoneIndex, true, Children);
+	}
+
 };
+
+class VRM4U_API VRMRetargetData {
+public:
+
+	struct RetargetParts {
+		FString BoneUE4;
+		FString BoneVRM;
+		FString BoneModel;
+
+		FRotator rot;
+		bool operator==(const RetargetParts& a) const{
+			return BoneUE4.Compare(a.BoneUE4, ESearchCase::IgnoreCase) == 0;
+		}
+	};
+	class UVrmAssetListObject* vrmAssetList = nullptr;
+	TArray<RetargetParts> retargetTable;
+
+	void Setup(class UVrmAssetListObject* vrmAssetList, bool bVRM, bool bBVH, bool bPMX);
+	void UpdateBoneName();
+	void Remove(FString BoneUE4);
+};
+
+

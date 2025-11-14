@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 
 #include "VrmAssetListObject.h"
@@ -56,6 +56,7 @@ void UVrmAssetListObject::CopyMember(UVrmAssetListObject *dst) const {
 	dst->BaseSkeletalMesh = BaseSkeletalMesh;
 	dst->VrmMetaObject = VrmMetaObject;
 	dst->VrmLicenseObject = VrmLicenseObject;
+	dst->Vrm1LicenseObject = Vrm1LicenseObject;
 	dst->SkeletalMesh = SkeletalMesh;
 	dst->Textures = Textures;
 	dst->Materials = Materials;

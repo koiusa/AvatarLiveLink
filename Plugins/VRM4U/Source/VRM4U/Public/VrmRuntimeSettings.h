@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -35,7 +35,7 @@ class VRM4U_API UVrmRuntimeSettings : public UObject
 
 	/** Default material set for runtimeload */
 	UPROPERTY(config, EditAnywhere, Category = Settings, meta = (
-		AllowedClasses = "Object",
+		AllowedClasses = "/Script/CoreUObject.Object",
 		ExactClass = false
 		))
 	FSoftObjectPath AssetListObject;

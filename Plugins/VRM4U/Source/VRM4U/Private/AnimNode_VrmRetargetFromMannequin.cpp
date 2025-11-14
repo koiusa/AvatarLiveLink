@@ -1,7 +1,8 @@
-﻿// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+﻿// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "AnimNode_VrmRetargetFromMannequin.h"
 #include "AnimationRuntime.h"
+#include "Animation/AnimInstance.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "DrawDebugHelpers.h"
@@ -73,11 +74,11 @@ void FAnimNode_VrmRetargetFromMannequin::UpdateCache(FComponentSpacePoseContext&
 		return;
 	}
 
-	if (srcSkeletalMesh == VRMGetSkinnedAsset(srcMannequinMesh)) {
+	if (srcSkeletalMesh == VRMGetSkeletalMeshAsset(srcMannequinMesh)) {
 		return;
 	}
 
-	srcSkeletalMesh = VRMGetSkinnedAsset(srcMannequinMesh);
+	srcSkeletalMesh = VRMGetSkeletalMeshAsset(srcMannequinMesh);
 
 	if (srcSkeletalMesh == nullptr) return;
 	if (dstSkeletalMesh == nullptr) return;
@@ -182,8 +183,8 @@ void FAnimNode_VrmRetargetFromMannequin::EvaluateSkeletalControl_AnyThread(FComp
 		return;
 	}
 
-	auto &srcRefSkeleton = VRMGetRefSkeleton( VRMGetSkinnedAsset(srcAsSkinnedMeshComp) );
-	auto &dstRefSkeleton = VRMGetRefSkeleton( VRMGetSkinnedAsset(Output.AnimInstanceProxy->GetSkelMeshComponent()) );
+	auto &srcRefSkeleton = VRMGetRefSkeleton(VRMGetSkeletalMeshAsset(srcAsSkinnedMeshComp) );
+	auto &dstRefSkeleton = VRMGetRefSkeleton(VRMGetSkeletalMeshAsset(Output.AnimInstanceProxy->GetSkelMeshComponent()) );
 
 	// ref pose
 	const auto& dstRefSkeletonTransform = dstRefSkeleton.GetRefBonePose();

@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "AnimGraphNode_VrmConstraint.h"
 #include "Misc/EngineVersionComparison.h"
@@ -29,11 +29,11 @@ UAnimGraphNode_VrmConstraint::UAnimGraphNode_VrmConstraint(const FObjectInitiali
 
 void UAnimGraphNode_VrmConstraint::ValidateAnimNodePostCompile(FCompilerResultsLog& MessageLog, UAnimBlueprintGeneratedClass* CompiledClass, int32 CompiledNodeIndex) {
 
-	if (Node.VrmMetaObject == nullptr) {
+	if (Node.VrmMetaObject_Internal == nullptr) {
 		//MessageLog.Warning(*LOCTEXT("VrmNoMetaObject", "@@ - You must set VrmMetaObject").ToString(), this);
 	} else {
-		if (Node.VrmMetaObject->SkeletalMesh) {
-			if (VRMGetSkeleton(Node.VrmMetaObject->SkeletalMesh) != CompiledClass->GetTargetSkeleton()) {
+		if (Node.VrmMetaObject_Internal->SkeletalMesh) {
+			if (VRMGetSkeleton(Node.VrmMetaObject_Internal->SkeletalMesh) != CompiledClass->GetTargetSkeleton()) {
 				MessageLog.Warning(*LOCTEXT("VrmDifferentSkeleton", "@@ - You must set VrmMetaObject has same skeleton").ToString(), this);
 			}
 		}
@@ -52,7 +52,11 @@ void UAnimGraphNode_VrmConstraint::ValidateAnimNodeDuringCompilation(USkeleton* 
 
 FText UAnimGraphNode_VrmConstraint::GetControllerDescription() const
 {
-	return LOCTEXT("VrmConstraint", "VrmConstraint");
+	if (Node.EnableAutoSearchMetaData) {
+		return LOCTEXT("VrmConstraint", "VrmConstraint(auto)");
+	} else {
+		return LOCTEXT("VrmConstraint", "VrmConstraint");
+	}
 }
 
 FText UAnimGraphNode_VrmConstraint::GetTooltipText() const
@@ -79,6 +83,20 @@ FEditorModeID UAnimGraphNode_VrmConstraint::GetEditorMode() const
 
 void UAnimGraphNode_VrmConstraint::Draw(FPrimitiveDrawInterface* PDI, USkeletalMeshComponent * PreviewSkelMeshComp) const
 {
+	if (PreviewSkelMeshComp)
+	{
+		/*
+		if (FAnimNode_VrmSpringBone* ActiveNode = GetActiveInstanceNode<FAnimNode_VrmSpringBone>(PreviewSkelMeshComp->GetAnimInstance()))
+		{
+			if (bPreviewLive) {
+				ActiveNode->ConditionalDebugDraw(PDI, PreviewSkelMeshComp, bPreviewForeground);
+			}
+		}
+		*/
+		if (bPreviewLive) {
+			Node.ConditionalDebugDraw(PDI, PreviewSkelMeshComp, bPreviewForeground);
+		}
+	}
 }
 
 

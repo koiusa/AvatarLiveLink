@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -13,13 +13,10 @@
 
 class USkeletalMeshComponent;
 class UVrmMetaObject;
+class UVrmAssetListObject;
 
-namespace VRMSpring {
-	class VRMSpringManager;
-}
-
-namespace VRMSpring1 {
-	class VRMSpringManager;
+namespace VRMSpringBone {
+	class VRMSpringManagerBase;
 }
 
 
@@ -31,8 +28,19 @@ struct VRM4U_API FAnimNode_VrmSpringBone : public FAnimNode_SkeletalControlBase
 {
 	GENERATED_USTRUCT_BODY()
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta = (PinHiddenByDefault))
+	bool EnableAutoSearchMetaData = true;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta=(PinHiddenByDefault))
 	const UVrmMetaObject *VrmMetaObject = nullptr;
+
+#if	UE_VERSION_OLDER_THAN(5,0,0)
+	TAssetPtr<UVrmMetaObject> VrmMetaObject_Internal = nullptr;
+	TAssetPtr<UVrmAssetListObject> VrmAssetListObject_Internal = nullptr;
+#else
+	TSoftObjectPtr<UVrmMetaObject> VrmMetaObject_Internal = nullptr;
+	TSoftObjectPtr<UVrmAssetListObject> VrmAssetListObject_Internal = nullptr;
+#endif
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta = (PinHiddenByDefault))
 	float gravityScale = 1.f;
@@ -62,7 +70,7 @@ struct VRM4U_API FAnimNode_VrmSpringBone : public FAnimNode_SkeletalControlBase
 	bool bIgnorePhysicsResetOnTeleport = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta=(PinHiddenByDefault))
-	bool bIgnorePhysicsCollision = false;
+	bool bIgnorePhysicsCollision = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta=(PinHiddenByDefault))
 	bool bIgnoreVRMCollision = false;
@@ -74,8 +82,7 @@ struct VRM4U_API FAnimNode_VrmSpringBone : public FAnimNode_SkeletalControlBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Skeleton, meta = (PinHiddenByDefault))
 	TArray<FName> NoWindBoneNameList;
 
-	TSharedPtr<VRMSpring::VRMSpringManager> SpringManager;
-	TSharedPtr<VRMSpring1::VRMSpringManager> SpringManager1;
+	TSharedPtr<VRMSpringBone::VRMSpringManagerBase> SpringManager;
 
 	float CurrentDeltaTime = 0.f;
 

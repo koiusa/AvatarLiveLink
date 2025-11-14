@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 using UnrealBuildTool;
 
@@ -12,20 +12,20 @@ public class VRM4UCapture : ModuleRules
 			new string[] {
 				"Core",
 				"CoreUObject",
-                "InputCore",
-                "ApplicationCore",
                 "Engine",
-				"Json",
-                "Slate",
-                "SlateCore",
-                "RenderCore",
-                "RHI",
-                "Renderer",
                 "Networking",
                 "Sockets",
+				"OSC",
+				"AnimGraphRuntime",
 
-                "VRM4U",
+				"VRM4U",
             });
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("UnrealEd");
+		}
+
 
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] {

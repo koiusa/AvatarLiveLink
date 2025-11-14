@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
@@ -18,7 +18,7 @@ class FCompilerResultsLog;
 class FPrimitiveDrawInterface;
 class USkeletalMeshComponent;
 
-UCLASS(meta=(Keywords = "Modify Transform"))
+UCLASS(meta=(Keywords = "VRM4U"))
 class UAnimGraphNode_VrmModifyBoneList : public UAnimGraphNode_SkeletalControlBase
 {
 	GENERATED_UCLASS_BODY()

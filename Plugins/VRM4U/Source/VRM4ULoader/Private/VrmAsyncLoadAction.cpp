@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "VrmAsyncLoadAction.h"
 #include "Async/TaskGraphInterfaces.h"
@@ -97,13 +97,14 @@ static bool ConvTex(UVrmAssetListObject* vrmAssetList, const aiScene* mScenePtr,
 				if (baseName.Len() == 0) {
 					baseName = TEXT("texture") + FString::FromInt(i);
 				}
-				if (localAsset.NormalBoolTable[i]) {
+				bool bNormalGreenFlip = localAsset.NormalBoolTable[i];
+				if (bNormalGreenFlip) {
 					baseName += TEXT("_N");
 				}
 
 				FString name = FString(TEXT("T_")) + baseName;
 				auto* pkg = GetTransientPackage();
-				UTexture2D* NewTexture2D = VRMUtil::CreateTextureFromImage(name, pkg, t.pcData, t.mWidth, false, true);
+				UTexture2D* NewTexture2D = VRMLoaderUtil::CreateTextureFromImage(name, pkg, t.pcData, t.mWidth, false, localAsset.NormalBoolTable[i], bNormalGreenFlip&&(VRMConverter::IsImportMode() == false));
 				vrmAssetList->Textures[i] = NewTexture2D;
 			}
 
@@ -119,7 +120,9 @@ static bool ConvTex(UVrmAssetListObject* vrmAssetList, const aiScene* mScenePtr,
 					NewTexture2D->CompressionSettings = TC_Normalmap;
 					NewTexture2D->SRGB = 0;
 #if WITH_EDITOR
-					NewTexture2D->bFlipGreenChannel = true;
+					if (VRMConverter::IsImportMode()) {
+						NewTexture2D->bFlipGreenChannel = true;
+					}
 #endif
 				}
 				if (localAsset.MaskBoolTable[i]) {

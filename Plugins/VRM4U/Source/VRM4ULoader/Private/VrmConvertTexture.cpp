@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "VrmConvertTexture.h"
 #include "VrmConvert.h"
@@ -13,12 +13,14 @@
 #include "RenderUtils.h"
 #include "Engine/Texture.h"
 #include "Engine/Texture2D.h"
+#include "Materials/Material.h"
 #include "Engine/SubsurfaceProfile.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "VrmAssetListObject.h"
 #include "Async/ParallelFor.h"
 #include "UObject/UObjectHash.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 #if WITH_EDITOR
 #include "Factories.h"
@@ -57,6 +59,8 @@ namespace {
 		} else {
 			material->Parent = parent;
 		}
+		FMaterialUpdateContext UpdateContext(FMaterialUpdateContext::EOptions::Default, GMaxRHIShaderPlatform);
+		UpdateContext.AddMaterialInstance(material);
 #else
 		material->Parent = parent;
 #endif
@@ -172,6 +176,9 @@ namespace {
 			}
 		}
 		if (src == nullptr) {
+			// todo small texture vrm1license
+		}
+		if (src == nullptr) {
 			return;
 		}
 
@@ -208,7 +215,7 @@ namespace {
 		{
 			VRMUtil::FImportImage img;
 			auto *a = aiData->mTextures[TextureID];
-			if (VRMUtil::LoadImageFromMemory(a->pcData, a->mWidth, img) == false) {
+			if (VRMLoaderUtil::LoadImageFromMemory(a->pcData, a->mWidth, img) == false) {
 				return;
 			}
 			if (img.RawData.GetData() == nullptr) {
@@ -222,7 +229,7 @@ namespace {
 		if (VRMConverter::Options::Get().IsSingleUAssetFile() == false) {
 			pkg = VRM4U_CreatePackage(vrmAssetList->Package, *baseName);
 		}
-		UTexture2D* NewTexture2D = VRMUtil::CreateTexture(W, H, baseName, pkg);
+		UTexture2D* NewTexture2D = VRMLoaderUtil::CreateTexture(W, H, baseName, pkg);
 
 		// scale texture
 		{
@@ -284,7 +291,9 @@ namespace {
 #endif
 	}
 
-	bool createAndAddMaterial(UMaterialInstanceConstant *dm, int matIndex, UVrmAssetListObject *vrmAssetList, const VRMConverter *vc) {
+	bool createAndAddMaterial(UMaterialInstanceConstant *dm, int matIndex, UVrmAssetListObject *vrmAssetList, const VRMConverter *vc,
+		const TArray<int> &TextureTypeToIndex
+	) {
 		auto i = matIndex;
 
 		// default set function
@@ -295,6 +304,7 @@ namespace {
 		};
 		auto SetLocalParamsForScaler = [](auto* dm) {
 			LocalScalarParameterSet(dm, TEXT("mtoon_BumpScale"), 1.f);
+			LocalScalarParameterSet(dm, TEXT("mtoon_NormalScale"), 1.f);
 			LocalScalarParameterSet(dm, TEXT("mtoon_ReceiveShadowRate"), 1.f);
 
 			LocalScalarParameterSet(dm, TEXT("mtoon_OutlineLightingMix"), 1.f);
@@ -358,6 +368,7 @@ namespace {
 			TT tableParam[] = {
 				{TEXT("_Cutoff"),		vrmMat.floatProperties._Cutoff},
 				{TEXT("_BumpScale"),	vrmMat.floatProperties._BumpScale},
+				{TEXT("_NormalScale"),	vrmMat.floatProperties._BumpScale},	// VRM4U Custom
 				{TEXT("_ReceiveShadowRate"),	vrmMat.floatProperties._ReceiveShadowRate},
 				{TEXT("_ShadeShift"),			vrmMat.floatProperties._ShadeShift},
 				{TEXT("_ShadeToony"),			vrmMat.floatProperties._ShadeToony},
@@ -423,25 +434,55 @@ namespace {
 			TT tableParam[] = {
 				{TEXT("mtoon_tex_MainTex"),		vrmMat.textureProperties._MainTex},
 				{TEXT("mtoon_tex_ShadeTexture"),	vrmMat.textureProperties._ShadeTexture},
+				{TEXT("mtoon_tex_Shade"),			vrmMat.textureProperties._ShadeTexture},	// vrm1
 				{TEXT("mtoon_tex_BumpMap"),		vrmMat.textureProperties._BumpMap},
 				{TEXT("mtoon_tex_ReceiveShadowTexture"),	vrmMat.textureProperties._ReceiveShadowTexture},
 				{TEXT("mtoon_tex_ShadingGradeTexture"),	vrmMat.textureProperties._ShadingGradeTexture},
 				{TEXT("mtoon_tex_RimTexture"),			vrmMat.textureProperties._RimTexture},
+				{TEXT("mtoon_tex_RimMultiply"),					vrmMat.textureProperties._RimTexture},	// vrm1
 				{TEXT("mtoon_tex_SphereAdd"),	vrmMat.textureProperties._SphereAdd},
+				{TEXT("mtoon_tex_MatCap"),		vrmMat.textureProperties._SphereAdd},	// vrm1
 				{TEXT("mtoon_tex_EmissionMap"),	vrmMat.textureProperties._EmissionMap},
-				{TEXT("mtoon_tex_OutlineWidthTexture"),	vrmMat.textureProperties._OutlineWidthTexture},
-				{TEXT("mtoon_tex_UvAnimMaskTexture"),	vrmMat.textureProperties._UvAnimMaskTexture},
+				{TEXT("mtoon_tex_Emissive"),	vrmMat.textureProperties._EmissionMap},	// vrm1
+				{TEXT("mtoon_tex_OutlineWidthTexture"),			vrmMat.textureProperties._OutlineWidthTexture},
+				{TEXT("mtoon_tex_OutlineWidthMultiply"),		vrmMat.textureProperties._OutlineWidthTexture},		// vrm1
+				{TEXT("mtoon_tex_UvAnimMaskTexture")	,	vrmMat.textureProperties._UvAnimMaskTexture},
+				{TEXT("mtoon_tex_UvAnimationMask"),			vrmMat.textureProperties._UvAnimMaskTexture},		// vrm1
 			};
+
+			if (VRMConverter::Options::Get().IsVRM10Model()) {
+				FSoftObjectPath r(TEXT("/VRM4U/MaterialUtil/T_DummyBlack.T_DummyBlack"));
+				UObject* u = r.TryLoad();
+				if (u) {
+					auto r2 = Cast<UTexture2D>(u);
+					if (r2) {
+						LocalTextureSet(dm, "mtoon_tex_EmissionMap", r2);
+					}
+				}
+			}
+
+			// default texture
+			{
+				auto n = TextureTypeToIndex[aiTextureType_DIFFUSE];
+				if (n >= 0) {
+					LocalTextureSet(dm, TEXT("mtoon_tex_MainTex"), vrmAssetList->Textures[n]);
+					LocalTextureSet(dm, TEXT("gltf_tex_diffuse"), vrmAssetList->Textures[n]);
+					LocalTextureSet(dm, TEXT("mtoon_tex_Shade"), vrmAssetList->Textures[n]);
+				}
+			}
+
+			// mtoon texture
 			int count = 0;
 			for (auto &t : tableParam) {
 				++count;
-				if (t.value < 0) {
+				if (t.value < 0 || t.value >= vrmAssetList->Textures.Num()) {
 					continue;
 				}
 				LocalTextureSet(dm, *t.key, vrmAssetList->Textures[t.value]);
 				if (count == 1) {
 					// main => shade tex
 					LocalTextureSet(dm, *tableParam[1].key, vrmAssetList->Textures[t.value]);
+					LocalTextureSet(dm, *tableParam[2].key, vrmAssetList->Textures[t.value]);
 				}
 
 				//FTextureParameterValue *v = new (dm->TextureParameterValues) FTextureParameterValue();
@@ -450,6 +491,24 @@ namespace {
 				//v->ParameterInfo.Association = EMaterialParameterAssociation::GlobalParameter;
 				//v->ParameterValue = vrmAssetList->Textures[t.value];
 			}
+
+			// gltf default texture
+			{
+				auto n = TextureTypeToIndex[aiTextureType_NORMALS];
+				if (0 <= n && n < vrmAssetList->Textures.Num()) {
+					vrmAssetList->Textures[n]->SRGB = false;
+					vrmAssetList->Textures[n]->CompressionSettings = TC_Normalmap;
+					vrmAssetList->Textures[n]->UpdateResource();
+					LocalTextureSet(dm, TEXT("mtoon_tex_Normal"), vrmAssetList->Textures[n]);
+				}
+			}
+			{
+				auto n = TextureTypeToIndex[aiTextureType_EMISSIVE];
+				if (0 <= n && n < vrmAssetList->Textures.Num()) {
+					LocalTextureSet(dm, TEXT("mtoon_tex_Emissive"), vrmAssetList->Textures[n]);
+				}
+			}
+
 
 		}
 
@@ -655,7 +714,8 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 				if (baseName.Len() == 0) {
 					baseName = TEXT("texture") + FString::FromInt(i);
 				}
-				if (NormalBoolTable[i]) {
+				bool bNormalGreenFlip = NormalBoolTable[i];
+				if (bNormalGreenFlip) {
 					baseName += TEXT("_N");
 				}
 
@@ -664,37 +724,36 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 				if (VRMConverter::Options::Get().IsSingleUAssetFile() == false) {
 					pkg = VRM4U_CreatePackage(vrmAssetList->Package, *name);
 				}
-				UTexture2D* NewTexture2D = VRMUtil::CreateTextureFromImage(name, pkg, t.pcData, t.mWidth, bGenerateMips);
+				UTexture2D* NewTexture2D = VRMLoaderUtil::CreateTextureFromImage(name, pkg, t.pcData, t.mWidth, bGenerateMips, NormalBoolTable[i], bNormalGreenFlip&&(VRMConverter::IsImportMode()==false));
 #if WITH_EDITOR
 				NewTexture2D->DeferCompression = false;
 #endif
 
+				bool bIsBC7 = false;
 				// Set options
 				if (NormalBoolTable[i]) {
-					NewTexture2D->CompressionSettings = TC_Normalmap;
 					NewTexture2D->SRGB = 0;
 #if WITH_EDITOR
-					NewTexture2D->bFlipGreenChannel = true;
+					NewTexture2D->CompressionNoAlpha = true;
+					if (VRMConverter::IsImportMode()) {
+						NewTexture2D->bFlipGreenChannel = true;
+					}
 #endif
+				} else {
+					if (VRMConverter::Options::Get().IsBC7Mode()) {
+						NewTexture2D->CompressionSettings = TC_BC7;
+						bIsBC7 = true;
+					}
 				}
 				if (MaskBoolTable[i]) {
 					// comment for material warning...
 					//NewTexture2D->SRGB = 0;
 				}
 
-				{
-					bool bIsBC7 = false;
-					if (NewTexture2D->SRGB) {
-						if (VRMConverter::Options::Get().IsBC7Mode()) {
-							NewTexture2D->CompressionSettings = TC_BC7;
-							bIsBC7 = true;
-						}
-					}
-					if (bIsBC7) {
-						textureCompressTypeArray.Add(EVRMImportTextureCompressType::VRMITC_BC7);
-					} else {
-						textureCompressTypeArray.Add(EVRMImportTextureCompressType::VRMITC_DXT1);
-					}
+				if (bIsBC7) {
+					textureCompressTypeArray.Add(EVRMImportTextureCompressType::VRMITC_BC7);
+				} else {
+					textureCompressTypeArray.Add(EVRMImportTextureCompressType::VRMITC_DXT1);
 				}
 
 
@@ -702,6 +761,15 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 #if WITH_EDITOR
 				NewTexture2D->PostEditChange();
 #endif
+
+				if (NormalBoolTable[i]) {
+					// UE5.5でクラッシュするので update後に再度更新
+					NewTexture2D->CompressionSettings = TC_Normalmap;
+					NewTexture2D->UpdateResource();
+#if WITH_EDITOR
+					NewTexture2D->PostEditChange();
+#endif
+				}
 
 				texArray.Push(NewTexture2D);
 			}
@@ -731,14 +799,15 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 
 			FString TextureFullPath = FPaths::GetPath(vrmAssetList->FileFullPathName) + TEXT("/") + UTF8_TO_TCHAR(ais.C_Str());
 			
-			FString baseName = UTF8_TO_TCHAR(ais.C_Str());
+			FString baseName = FPaths::GetBaseFilename(UTF8_TO_TCHAR(ais.C_Str()));
+			baseName = TEXT("T_") + FPaths::GetBaseFilename(baseName);
+			baseName = NormalizeFileName(baseName);
+
 			if (pmxTexNameList.Find(baseName) >= 0) {
 				continue;
 			}
 			pmxTexNameList.Push(baseName);
 
-			baseName = TEXT("T_") + FPaths::GetBaseFilename(baseName);
-			baseName = NormalizeFileName(baseName);
 
 			TArray<uint8> RawFileData;
 			if (FFileHelper::LoadFileToArray(RawFileData, *TextureFullPath)){
@@ -747,7 +816,7 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 				if (VRMConverter::Options::Get().IsSingleUAssetFile() == false) {
 					pkg = VRM4U_CreatePackage(vrmAssetList->Package, *baseName);
 				}
-				UTexture2D* NewTexture2D = VRMUtil::CreateTextureFromImage(baseName, pkg, RawFileData.GetData(), RawFileData.Num(), bGenerateMips);
+				UTexture2D* NewTexture2D = VRMLoaderUtil::CreateTextureFromImage(baseName, pkg, RawFileData.GetData(), RawFileData.Num(), bGenerateMips);
 
 				texArray.Push(NewTexture2D);
 			}
@@ -862,7 +931,7 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 				bool bTranslucent = false;
 				bool bOpaque = false;
 
-				if (ShaderName.Find(TEXT("MToon")) >= 0) {
+				{
 					aiString alphaMode;
 					aiReturn result = aiMat.Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode);
 					FString alpha = alphaMode.C_Str();
@@ -881,7 +950,14 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 							}
 						}
 					}
+					bool b = false;
+					aiReturn ret = aiMat.Get(AI_MATKEY_TWOSIDED, b);
+					if (ret == AI_SUCCESS) {
+						if (b) bTwoSided = true;
+					}
+				}
 
+				if (ShaderName.Find(TEXT("MToon")) >= 0) {
 					const VRM::VRMMetadata *meta = static_cast<const VRM::VRMMetadata*>(aiData->mVRMMeta);
 					if (meta) {
 						if ((int)iMat < meta->materialNum) {
@@ -986,7 +1062,12 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 
 					if (Options::Get().IsPMXModel()) {
 						for (int i = 0; i < pmxTexNameList.Num(); ++i) {
-							if (pmxTexNameList[i] == UTF8_TO_TCHAR(path.C_Str())) {
+
+							FString baseName = FPaths::GetBaseFilename(UTF8_TO_TCHAR(path.C_Str()));
+							baseName = TEXT("T_") + FPaths::GetBaseFilename(baseName);
+							baseName = NormalizeFileName(baseName);
+
+							if (pmxTexNameList[i] == baseName) {
 								TextureTypeToIndex[t] = i;
 								break;
 							}
@@ -1010,11 +1091,11 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 			{
 				UMaterialInstanceConstant* dm = nullptr;
 				{
-					const FString origname = (FString(TEXT("M_")) + NormalizeFileName(aiMat.GetName().C_Str()));
+					const FString origname = (FString(TEXT("MI_")) + NormalizeFileName(aiMat.GetName().C_Str()));
 					FString name = origname;
 
 					if (MatNameList.Find(origname)) {
-						name += FString::Printf(TEXT("_%03d"), MatNameList[name]);// TEXT("_2");
+						name += FString::Printf(TEXT("_%03d"), MatNameList[name]);
 					}
 					MatNameList.FindOrAdd(origname)++;
 
@@ -1110,6 +1191,7 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 							if (tex) {
 								LocalTextureSet(dm, TEXT("gltf_tex_diffuse"), tex);
 								LocalTextureSet(dm, TEXT("mtoon_tex_ShadeTexture"), tex);
+								LocalTextureSet(dm, TEXT("mtoon_tex_Shade"), tex);
 							}
 						}
 					}
@@ -1130,7 +1212,7 @@ bool VRMConverter::ConvertTextureAndMaterial(UVrmAssetListObject *vrmAssetList) 
 
 					// mtoon
 					if (bMToon || VRMConverter::Options::Get().IsVRM10Model()) {
-						createAndAddMaterial(dm, iMat, vrmAssetList, this);
+						createAndAddMaterial(dm, iMat, vrmAssetList, this, TextureTypeToIndex);
 
 						if (matFlagOpaqueArray.IsValidIndex(iMat)) {
 							if (matFlagOpaqueArray[iMat]) {

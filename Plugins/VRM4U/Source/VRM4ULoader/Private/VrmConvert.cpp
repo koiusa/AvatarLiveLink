@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #include "VrmConvert.h"
 
@@ -110,13 +110,24 @@ static bool ReplaceNodeName(aiNode *node, const TMap<FString, FString> &map) {
 	return true;
 }
 
+static bool LocalMakeName(aiNode* node) {
+	for (uint32_t i = 0; i < node->mNumChildren; ++i) {
+		LocalMakeName(node->mChildren[i]);
+	}
+	auto s = VRMUtil::MakeName(UTF8_TO_TCHAR(node->mName.C_Str()), true);
+	node->mName = TCHAR_TO_UTF8(*s);
+
+	return true;
+}
+
+
 static bool LocalNormalizeBone(aiNode *node) {
 	for (uint32_t i = 0; i < node->mNumChildren; ++i) {
 		LocalNormalizeBone(node->mChildren[i]);
 	}
 	auto s = VRMUtil::GetSafeNewName(UTF8_TO_TCHAR(node->mName.C_Str()));
-	node->mName = TCHAR_TO_ANSI(*s);
-	
+	node->mName = TCHAR_TO_UTF8(*s);
+
 	return true;
 }
 
@@ -124,43 +135,43 @@ bool VRMConverter::NormalizeBoneName(const aiScene *mScenePtr) {
 	if (mScenePtr == nullptr) {
 		return false;
 	}
-	if (VRMConverter::Options::Get().IsStrictBoneNameMode()) {
 
-		// aiNode name
-		LocalNormalizeBone(mScenePtr->mRootNode);
+	if (VRMConverter::Options::Get().IsForceOriginalBoneName()) {
+	}else{
+		LocalMakeName(mScenePtr->mRootNode);
 
 		// aiBone name
 		for (uint32 m = 0; m < mScenePtr->mNumMeshes; ++m) {
-			auto *aiM = mScenePtr->mMeshes[m];
+			auto* aiM = mScenePtr->mMeshes[m];
 
 			for (uint32 b = 0; b < aiM->mNumBones; ++b) {
-				auto *aiB = aiM->mBones[b];
+				auto* aiB = aiM->mBones[b];
 
-				auto s = VRMUtil::GetSafeNewName(UTF8_TO_TCHAR(aiB->mName.C_Str()));
-				aiB->mName = TCHAR_TO_ANSI(*s);
+				auto s = VRMUtil::MakeName(UTF8_TO_TCHAR(aiB->mName.C_Str()), true);
+				aiB->mName = TCHAR_TO_UTF8(*s);
 			}
 		}
 
 		// spring, collision name
 		VRM::VRMMetadata* meta = reinterpret_cast<VRM::VRMMetadata*>(mScenePtr->mVRMMeta);
 		if (meta) {
-			for (int s=0; s<meta->springNum; ++s){
+			for (int s = 0; s < meta->springNum; ++s) {
 				for (int b = 0; b < meta->springs[s].boneNum; ++b) {
-					auto str = VRMUtil::GetSafeNewName(UTF8_TO_TCHAR(meta->springs[s].bones_name[b].C_Str()));
-					meta->springs[s].bones_name[b] = TCHAR_TO_ANSI(*str);
+					auto str = VRMUtil::MakeName(UTF8_TO_TCHAR(meta->springs[s].bones_name[b].C_Str()), true);
+					meta->springs[s].bones_name[b] = TCHAR_TO_UTF8(*str);
 				}
 			}
 			for (int c = 0; c < meta->colliderGroupNum; ++c) {
-				auto str = VRMUtil::GetSafeNewName(UTF8_TO_TCHAR(meta->colliderGroups[c].node_name.C_Str()));
-				meta->colliderGroups[c].node_name = TCHAR_TO_ANSI(*str);
+				auto str = VRMUtil::MakeName(UTF8_TO_TCHAR(meta->colliderGroups[c].node_name.C_Str()), true);
+				meta->colliderGroups[c].node_name = TCHAR_TO_UTF8(*str);
 			}
 		}
-
 	}
 
-
-
 	return true;
+
+
+	/*
 	//auto p = const_cast<aiScene*>(mScenePtr);
 	//if (p == nullptr) return false;
 
@@ -229,6 +240,7 @@ bool VRMConverter::NormalizeBoneName(const aiScene *mScenePtr) {
 
 
 	return true;
+	*/
 }
 
 
@@ -259,7 +271,7 @@ bool VRMConverter::Options::IsSkipMorphTarget() const {
 #if WITH_EDITOR
 	if (ImportOption == nullptr) return false;
 
-	return ImportOption->bSkipMorphTarget;
+	return ImportOption->bSkipMorphTarget || IsDebugNoMesh();
 #else
 	return false;
 #endif
@@ -275,11 +287,11 @@ bool VRMConverter::Options::IsEnableMorphTargetNormal() const {
 #endif
 }
 
-bool VRMConverter::Options::IsStrictMorphTargetNameMode() const {
+bool VRMConverter::Options::IsForceOriginalMorphTargetName() const {
 #if WITH_EDITOR
 	if (ImportOption == nullptr) return false;
 
-	return ImportOption->bStrictMorphTargetNameMode;
+	return ImportOption->bForceOriginalMorphTargetName;
 #else
 	return false;
 #endif
@@ -295,9 +307,9 @@ bool VRMConverter::Options::IsRemoveBlendShapeGroupPrefix() const {
 #endif
 }
 
-bool VRMConverter::Options::IsStrictBoneNameMode() const {
+bool VRMConverter::Options::IsForceOriginalBoneName() const {
 	if (ImportOption == nullptr) return false;
-	return ImportOption->bStrictBoneName;
+	return ImportOption->bForceOriginalBoneName;
 }
 
 bool VRMConverter::Options::IsGenerateHumanoidRenamedMesh() const {
@@ -348,6 +360,16 @@ int VRMConverter::Options::GetBoneWeightInfluenceNum() const {
 #endif
 }
 
+bool VRMConverter::Options::IsDebugIgnoreVRMValidation() const {
+	bool ret = false;
+#if WITH_EDITOR
+	if (ImportOption == nullptr) return ret;
+
+	return ImportOption->bIgnoreVRMValidation;
+#else
+	return ret;
+#endif
+}
 
 bool VRMConverter::Options::IsDebugOneBone() const {
 	bool ret = false;
@@ -355,6 +377,28 @@ bool VRMConverter::Options::IsDebugOneBone() const {
 	if (ImportOption == nullptr) return ret;
 
 	return ImportOption->bDebugOneBone;
+#else
+	return ret;
+#endif
+}
+
+bool VRMConverter::Options::IsDebugNoMesh() const {
+	bool ret = false;
+#if WITH_EDITOR
+	if (ImportOption == nullptr) return ret;
+
+	return ImportOption->bDebugNoMesh;
+#else
+	return ret;
+#endif
+}
+
+bool VRMConverter::Options::IsDebugNoMaterial() const {
+	bool ret = false;
+#if WITH_EDITOR
+	if (ImportOption == nullptr) return ret;
+
+	return ImportOption->bDebugNoMaterial;
 #else
 	return ret;
 #endif
@@ -396,6 +440,14 @@ bool VRMConverter::Options::IsSkipPhysics() const {
 	return ImportOption->bSkipPhysics;
 }
 
+bool VRMConverter::Options::IsSkipRetargeter() const {
+	bool ret = false;
+
+	if (ImportOption == nullptr) return ret;
+
+	return ImportOption->bSkipRetargeter;
+}
+
 bool VRMConverter::Options::IsForceOpaque() const {
 	if (ImportOption == nullptr) return false;
 	return ImportOption->bForceOpaque;
@@ -407,7 +459,7 @@ bool VRMConverter::Options::IsForceTwoSided() const {
 }
 
 bool VRMConverter::Options::IsSingleUAssetFile() const {
-	if (ImportOption == nullptr) return true;
+	if (ImportOption == nullptr) return false;
 
 	if (ImportOption->bUEFN) return false;
 
@@ -470,6 +522,11 @@ bool VRMConverter::Options::IsRemoveDegenerateTriangles() const {
 	return ImportOption->bRemoveDegenerateTriangles;
 }
 
+bool VRMConverter::Options::IsUE5Material() const {
+	if (ImportOption == nullptr) return false;
+	return ImportOption->bUseUE5Material;
+}
+
 static bool bbVRM0 = false;
 static bool bbVRM10 = false;
 void VRMConverter::Options::SetVRM0Model(bool bVRM) {
@@ -487,12 +544,43 @@ bool VRMConverter::Options::IsVRM0Model() const {
 bool VRMConverter::Options::IsVRM10Model() const {
 	return bbVRM10;
 }
+bool VRMConverter::Options::IsRemoveRootBoneRotation() const {
+	bool ret = true;
+#if WITH_EDITOR
+	if (ImportOption == nullptr) return ret;
+
+	return ImportOption->bRemoveRootBoneRotation;
+#else
+	return ret;
+#endif
+}
+bool VRMConverter::Options::IsRemoveRootBonePosition() const {
+	bool ret = true;
+#if WITH_EDITOR
+	if (ImportOption == nullptr) return ret;
+
+	return ImportOption->bRemoveRootBonePosition;
+#else
+	return ret;
+#endif
+}
+
 bool VRMConverter::Options::IsVRM10RemoveLocalRotation() const {
 	bool ret = true;
 #if WITH_EDITOR
 	if (ImportOption == nullptr) return ret;
 
 	return ImportOption->bVrm10RemoveLocalRotation;
+#else
+	return ret;
+#endif
+}
+
+bool VRMConverter::Options::IsVRM10BindToRestPose() const {
+	bool ret = true;
+#if WITH_EDITOR
+	if (ImportOption == nullptr) return ret;
+	return ImportOption->bVrm10UseBindToRestPose;
 #else
 	return ret;
 #endif
@@ -617,6 +705,7 @@ VrmConvert::~VrmConvert()
 }
 
 FString VRM4U_GetPackagePath(UPackage* Outer) {
+	if (Outer == nullptr) return "";
 	if (Outer != GetTransientPackage()) {
 		FString s = Outer->GetPathName();
 		FString s1, s2;
@@ -629,6 +718,7 @@ FString VRM4U_GetPackagePath(UPackage* Outer) {
 
 
 UPackage* VRM4U_CreatePackage(UPackage* Outer, FName Name) {
+	if (Outer == nullptr) return nullptr;
 	UPackage* pkg = Outer;
 	if (Outer != GetTransientPackage()) {
 		FString s = Outer->GetPathName();
@@ -645,6 +735,17 @@ UPackage* VRM4U_CreatePackage(UPackage* Outer, FName Name) {
 }
 
 
+UObject* VRM4U_StaticDuplicateObject(UObject const* SourceObject, UObject* DestOuter, const FName DestName, EObjectFlags FlagMask, UClass* DestClass, EDuplicateMode::Type DuplicateMode, EInternalObjectFlags InternalFlagsMask) {
+
+	if (VRMConverter::Options::Get().IsSingleUAssetFile() == false) {
+		DestOuter = VRM4U_CreatePackage(Cast<UPackage>(DestOuter), DestName);
+	}
+
+	return StaticDuplicateObject(SourceObject,
+		DestOuter, DestName,
+		FlagMask, DestClass, DuplicateMode, InternalFlagsMask);
+}
+
 
 
 
@@ -652,14 +753,29 @@ UPackage* VRM4U_CreatePackage(UPackage* Outer, FName Name) {
 
 template<typename T1>
 static void copyVector(VRM::vec4 &v, const T1& t) {
-	v[0] = t[0].GetFloat();
-	v[1] = t[1].GetFloat();
-	v[2] = t[2].GetFloat();
-	if (t.Size() > 3) {
-		v[3] = t[3].GetFloat();
-	} else {
-		v[3] = 1.f;
+	v[3] = 1.f;
+
+	if (t.Size() > 0) v[0] = t[0].GetFloat();
+	if (t.Size() > 1) v[1] = t[1].GetFloat();
+	if (t.Size() > 2) v[2] = t[2].GetFloat();
+	if (t.Size() > 3) v[3] = t[3].GetFloat();
+}
+
+int VRMConverter::GetThumbnailTextureIndex() const {
+
+	if (VRMConverter::Options::Get().IsVRM0Model()) {
+		return -1;
 	}
+	auto& meta = jsonData.doc["extensions"]["VRMC_vrm"]["meta"];
+	for (auto m = meta.MemberBegin(); m != meta.MemberEnd(); ++m) {
+
+		FString key = UTF8_TO_TCHAR((*m).name.GetString());
+
+		if (key == "thumbnailImage") {
+			return (*m).value.GetInt();
+		}
+	}
+	return -1;
 }
 
 bool VRMConverter::GetMatParam(VRM::VRMMaterial &m, int matNo) const {
@@ -719,11 +835,19 @@ bool VRMConverter::GetMatParam(VRM::VRMMaterial &m, int matNo) const {
 
 	m.name = mat["name"].GetString();
 
+	// texture
+	{
+		if (mat["extensions"]["VRMC_materials_mtoon"]["matcapTexture"]["index"].IsInt()) {
+			m.textureProperties._SphereAdd = mat["extensions"]["VRMC_materials_mtoon"]["matcapTexture"]["index"].GetInt();
+		}
+		if (mat["extensions"]["VRMC_materials_mtoon"]["rimMultiplyTexture"]["index"].IsInt()) {
+			m.textureProperties._RimTexture = mat["extensions"]["VRMC_materials_mtoon"]["rimMultiplyTexture"]["index"].GetInt();
+		}
+
+	}
+
 	// float
 	{
-		//auto t = mat["pbrMetallicRoughness"]["baseColorFactor"].GetArray();
-		//m.floatProperties._Color, t);
-
 		//m.floatProperties._Cutoff;
 		m.floatProperties._BumpScale = 1.f;
 		m.floatProperties._ReceiveShadowRate = 1.f;
@@ -788,6 +912,12 @@ bool VRMConverter::GetMatParam(VRM::VRMMaterial &m, int matNo) const {
 			auto t = mat["extensions"]["VRMC_materials_mtoon"]["outlineColorFactor"].GetArray();
 			if (t.Size()) {
 				copyVector(m.vectorProperties._OutlineColor, t);
+			}
+		}
+		{
+			auto t = mat["extensions"]["VRMC_materials_mtoon"]["matcapFactor"].GetArray();
+			if (t.Size()) {
+				//copyVector(m.vectorProperties._OutlineColor, t);
 			}
 		}
 	}

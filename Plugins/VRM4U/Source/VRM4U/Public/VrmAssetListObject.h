@@ -1,10 +1,11 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
 #include "Engine/SkeletalMesh.h"
+#include "Animation/Skeleton.h"
 #include "VrmImportMaterialSet.h"
 #include "VrmUtil.h"
 #include "VrmAssetListObject.generated.h"
@@ -15,6 +16,7 @@ class USkeletalMesh;
 class USkeleton;
 class UVrmMetaObject;
 class UVrmLicenseObject;
+class UVrm1LicenseObject;
 struct FReturnedData;
 class UNodeMappingContainer;
 
@@ -138,6 +140,9 @@ public:
 	UVrmLicenseObject* VrmLicenseObject;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
+	UVrm1LicenseObject* Vrm1LicenseObject;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
 	USkeletalMesh* SkeletalMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
@@ -164,6 +169,12 @@ public:
 	UNodeMappingContainer *HumanoidRig;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
+	UPoseAsset *PoseBody;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
+	UPoseAsset *PoseFace;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
 	TArray<bool> MaterialFlag_Translucent;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
@@ -173,6 +184,9 @@ public:
 	TArray<bool> MaterialFlag_Opaque;
 	TMap<FString, FTransform> Pose_bind;
 	TMap<FString, FTransform> Pose_tpose;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Out")
+	FTransform model_root_transform;
 
 	//TArray<FTransform> poseGlobal_bindpose;	// bone
 	//TArray<FTransform> poseGlobal_tpose;	// node

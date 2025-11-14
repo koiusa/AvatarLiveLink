@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 
 #include "VrmMocopiReceiver.h"
@@ -15,7 +15,7 @@
 
 FMocopiReceiverProxy::FMocopiReceiverProxy(UVrmMocopiReceiver * InReceiver):
 	Receiver(InReceiver){
-	FIPv4Address::Parse("127.0.0.1", ReceiveIPAddress);
+	FIPv4Address::Parse("0.0.0.0", ReceiveIPAddress);
 }
 
 FMocopiReceiverProxy::~FMocopiReceiverProxy() {

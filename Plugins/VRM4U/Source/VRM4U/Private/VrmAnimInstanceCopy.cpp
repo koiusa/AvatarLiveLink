@@ -1,4 +1,4 @@
-// VRM4U Copyright (c) 2021-2023 Haruyoshi Yamamoto. This software is released under the MIT License.
+// VRM4U Copyright (c) 2021-2024 Haruyoshi Yamamoto. This software is released under the MIT License.
 
 
 #include "VrmAnimInstanceCopy.h"
@@ -7,12 +7,15 @@
 #include "VrmUtil.h"
 #include "VrmBPFunctionLibrary.h"
 #include "Animation/AnimNodeBase.h"
-#include "Animation/Rig.h"
 //#include "BoneControllers/AnimNode_Fabrik.h"
 //#include "BoneControllers/AnimNode_TwoBoneIK.h"
 //#include "BoneControllers/AnimNode_SplineIK.h"
 #include "AnimNode_VrmSpringBone.h"
 #include "AnimNode_VrmConstraint.h"
+
+#if	UE_VERSION_OLDER_THAN(5,4,0)
+#include "Animation/Rig.h"
+#endif
 
 
 namespace {
@@ -20,7 +23,7 @@ namespace {
 	template<class BaseType, class PoseType>
 	static void ConvertToLocalPoses(const BaseType &basePose, PoseType& OutPose)
 	{
-		checkSlow(basePose.Pose.IsValid());
+		checkSlow(basePose.GetPose().IsValid());
 		OutPose = basePose.GetPose();
 
 		// now we need to convert back to local bases
@@ -319,7 +322,7 @@ bool FVrmAnimInstanceCopyProxy::Evaluate(FPoseContext& Output) {
 
 				auto& constraint = *Node_Constraint.Get();
 
-				constraint.VrmMetaObject = dstMeta;
+				constraint.VrmMetaObject_Internal = dstMeta;
 				constraint.bCallByAnimInstance = true;
 
 				FAnimationInitializeContext InitContext(this);
@@ -382,7 +385,7 @@ bool FVrmAnimInstanceCopyProxy::Evaluate(FPoseContext& Output) {
 
 				auto& springBone = *Node_SpringBone.Get();
 
-				springBone.VrmMetaObject = dstMeta;
+				springBone.VrmMetaObject_Internal = dstMeta;
 				springBone.bCallByAnimInstance = true;
 				springBone.CurrentDeltaTime = CurrentDeltaTime;
 
